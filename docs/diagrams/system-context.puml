@@ -1,0 +1,49 @@
+@startuml system-context
+!include <C4/C4_Context>
+' Generated from the same model as docs/architecture/workspace.dsl; edit both together.
+!include ozagrimate-theme.puml
+SHOW_PERSON_OUTLINE()
+LAYOUT_TOP_DOWN()
+skinparam nodesep 60
+skinparam ranksep 90
+title System context diagram: OzAgriMate Platform
+
+Person(farmer, "Farmer", "Checks readings and alerts, acts on irrigation advice and shares farm data.")
+Person(agronomist, "Agronomist", "Advises client farms remotely using the data farmers share.")
+Person(operationsStaff, "Operations Staff", "Monitor platform health and capacity and support users.")
+
+System(ozAgriMate, "OzAgriMate Platform", "Collects farm IoT data, raises alerts and gives AI-assisted irrigation advice.")
+
+System_Ext(iotNetwork, "IoT Sensor & Gateway Network", "Farm sensors and edge gateways; gateways buffer readings while offline.")
+System_Ext(irrigationControl, "Irrigation Control System", "On-farm irrigation hardware that runs watering schedules.")
+System_Ext(weatherProvider, "Weather Data Provider", "Supplies forecasts and climate data.")
+System_Ext(identityProvider, "Identity Provider", "Signs users in and issues access tokens (OIDC).")
+System_Ext(pushService, "Push Notification Service", "Delivers push notifications to phones (APNs, FCM).")
+System_Ext(smsGateway, "SMS Gateway", "Sends SMS messages to farmers' phones.")
+System_Ext(regulator, "Government & Regulatory Reporting System", "Receives resource-usage reports for compliance checks.")
+System_Ext(marketplace, "Agricultural Marketplace", "Third-party marketplace for buying supplies and selling produce.")
+
+Rel_D(farmer, ozAgriMate, "Checks readings, alerts and advice; shares farm data with agronomists")
+Rel_D(agronomist, ozAgriMate, "Reviews shared farm data and gives advice")
+Rel_D(operationsStaff, ozAgriMate, "Monitors platform health and devices")
+Rel_U(iotNetwork, ozAgriMate, "Sends sensor readings, replaying buffered data", "MQTT, JSON/HTTPS")
+Rel_D(ozAgriMate, iotNetwork, "Pushes device configuration", "MQTT")
+Rel_D(ozAgriMate, weatherProvider, "Fetches forecasts on a schedule", "JSON/HTTPS")
+Rel_D(ozAgriMate, identityProvider, "Validates users' access tokens", "OIDC/HTTPS")
+Rel_L(ozAgriMate, pushService, "Sends push alerts", "HTTPS")
+Rel_L(ozAgriMate, smsGateway, "Sends SMS when a push is not delivered", "HTTPS")
+Rel_U(pushService, farmer, "Delivers push alerts to the farmer's phone", "APNs/FCM")
+Rel_U(smsGateway, farmer, "Texts critical alerts", "SMS")
+Rel_R(ozAgriMate, irrigationControl, "Sends approved watering schedules", "HTTPS")
+Rel_D(ozAgriMate, regulator, "Submits scheduled usage reports", "HTTPS")
+Rel_D(ozAgriMate, marketplace, "Links farmers to supplies and produce listings", "HTTPS")
+
+Lay_R(farmer, agronomist)
+Lay_R(agronomist, operationsStaff)
+Lay_D(pushService, smsGateway)
+Lay_R(weatherProvider, iotNetwork)
+Lay_R(iotNetwork, identityProvider)
+Lay_R(identityProvider, regulator)
+Lay_R(marketplace, weatherProvider)
+SHOW_LEGEND(false)
+@enduml

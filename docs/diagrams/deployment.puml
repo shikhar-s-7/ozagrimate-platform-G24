@@ -1,0 +1,101 @@
+@startuml deployment
+!include <C4/C4_Deployment>
+' Generated from the same model as docs/architecture/workspace.dsl; edit both together.
+!include ozagrimate-theme.puml
+SHOW_PERSON_OUTLINE()
+LAYOUT_LEFT_RIGHT()
+skinparam nodesep 30
+skinparam ranksep 55
+title Deployment diagram: OzAgriMate Platform (production)
+
+Deployment_Node(farmSite, "Farm site", "Rural property, 4G or satellite link", "One per farm; connectivity drops for hours at a time.") {
+  Deployment_Node(edgeGateway, "Farm edge gateway", "Industrial IoT gateway, Linux", "Collects sensor readings; buffers them on local storage while offline.") {
+    System_Ext(iotNetwork, "IoT Sensor & Gateway Network", "Farm sensors and edge gateways; gateways buffer readings while offline.")
+  }
+}
+
+Deployment_Node(phone, "Farmer's phone", "iOS or Android", "Receives push alerts and SMS.") {
+  Container(mobileApp, "Farmer Mobile App", "React Native", "Shows readings, alerts and advice; works on patchy rural coverage.")
+}
+
+Deployment_Node(computer, "Agronomist's or staff computer", "Windows or macOS", "Office or field laptop.") {
+  Deployment_Node(browser, "Web browser", "Chrome, Edge or Safari", "Runs the single-page dashboard.") {
+    Container(webDashboard, "Web Dashboard", "React", "Multi-farm views for agronomists; platform health for operations staff.")
+  }
+}
+
+Deployment_Node(aws, "Amazon Web Services", "Public cloud", "Chosen for an Australian region and managed services.") {
+  Deployment_Node(sydney, "ap-southeast-2 (Sydney)", "AWS region in Australia", "All data stays onshore (ADR-05, C2); three availability zones.") {
+    Deployment_Node(loadBalancer, "Application Load Balancer", "AWS ALB", "Terminates TLS and spreads traffic over gateway and ingestion pods.")
+    Deployment_Node(eks, "Kubernetes cluster", "Amazon EKS, nodes in three zones", "Runs every service as stateless pods; replaces failed pods.") {
+      Deployment_Node(gatewayPods, "api-gateway pods", "NGINX, 3 replicas", "One per availability zone.") {
+        Container(apiGateway, "API Gateway", "NGINX", "Validates tokens, sets X-User-Id, rate-limits and routes /api/v1 calls.")
+      }
+      Deployment_Node(telemetryPods, "telemetry-ingestion pods", "Python 3.12, Uvicorn; autoscaled 3 to 30", "Pod autoscaler adds replicas as reading volume grows (ADR-02).") {
+        Container(telemetryService, "Telemetry Ingestion Service", "Python, FastAPI", "Validates and de-duplicates readings; tracks device health and configuration.")
+      }
+      Deployment_Node(alertPods, "alert-notification pods", "Python 3.12, Uvicorn; 3 replicas", "One Kafka consumer per replica.") {
+        Container(alertService, "Alert & Notification Service", "Python, FastAPI", "Checks readings against alert rules; notifies by push, then SMS.")
+      }
+      Deployment_Node(accessPods, "farm-access pods", "Python 3.12, Uvicorn; 2 replicas", "Low, steady load.") {
+        Container(accessService, "Farm & Access Service", "Python, FastAPI", "Farms, owners and revocable agronomist access grants.")
+      }
+      Deployment_Node(advisoryPods, "irrigation-advisory pods", "Python 3.12, ML model; 2 replicas", "CPU-optimised nodes.") {
+        Container(advisoryService, "Irrigation Advisory Service", "Python, FastAPI, ML model", "Generates AI irrigation recommendations from readings and forecasts.")
+      }
+      Deployment_Node(reportingPods, "reporting-compliance pods", "Python 3.12, Uvicorn; 2 replicas", "Runs scheduled report jobs.") {
+        Container(reportingService, "Reporting & Compliance Service", "Python, FastAPI", "Builds resource-usage reports for farmers and regulators.")
+      }
+    }
+    Deployment_Node(msk, "Amazon MSK", "Managed Apache Kafka, 3 brokers", "Topics partitioned by farmId, replicated across zones.") {
+      ContainerQueue(eventBroker, "Event Broker", "Apache Kafka", "Carries telemetry, alert, grant and recommendation events between services.")
+    }
+    Deployment_Node(timescale, "Time-series database", "TimescaleDB, primary and standby", "24-month retention; older data downsampled (ADR-07).") {
+      ContainerDb(telemetryStore, "Telemetry Store", "TimescaleDB", "Readings kept for 24 months; devices and their configuration.")
+    }
+    Deployment_Node(rds, "Amazon RDS for PostgreSQL", "Multi-AZ, one instance per service", "Database per service (ADR-07); encrypted at rest.") {
+      ContainerDb(alertDb, "Alert DB", "PostgreSQL", "Alert rules, alerts and delivery status.")
+      ContainerDb(accessDb, "Farm & Access DB", "PostgreSQL", "Farms, owners, agronomists and access grants.")
+      ContainerDb(advisoryDb, "Advisory DB", "PostgreSQL", "Recommendations with their inputs and rationale.")
+    }
+    Deployment_Node(s3, "Amazon S3", "Object storage, Sydney", "Versioned bucket, encrypted at rest.") {
+      ContainerDb(reportStore, "Report Store", "S3-compatible object storage", "Generated reports and regulator exports.")
+    }
+  }
+}
+
+Deployment_Node(saas, "External SaaS", "Third-party providers", "Reached over HTTPS from the cluster.") {
+  System_Ext(identityProvider, "Identity Provider", "Signs users in and issues access tokens (OIDC).")
+  System_Ext(pushService, "Push Notification Service", "Delivers push notifications to phones (APNs, FCM).")
+  System_Ext(smsGateway, "SMS Gateway", "Sends SMS messages to farmers' phones.")
+  System_Ext(weatherProvider, "Weather Data Provider", "Supplies forecasts and climate data.")
+}
+
+Rel(iotNetwork, loadBalancer, "Sends reading batches, replaying buffered data", "MQTT, JSON/HTTPS")
+Rel(mobileApp, loadBalancer, "Makes API calls", "JSON/HTTPS")
+Rel(webDashboard, loadBalancer, "Makes API calls", "JSON/HTTPS")
+Rel(loadBalancer, apiGateway, "Forwards user API calls", "HTTPS")
+Rel(loadBalancer, telemetryService, "Forwards device traffic", "MQTT, HTTPS")
+Rel(apiGateway, identityProvider, "Validates access tokens", "OIDC/HTTPS")
+Rel(apiGateway, alertService, "Routes alert and alert-rule calls", "JSON/HTTPS")
+Rel(apiGateway, accessService, "Routes access-grant calls", "JSON/HTTPS")
+Rel(apiGateway, telemetryService, "Routes device health and configuration calls", "JSON/HTTPS")
+Rel(apiGateway, advisoryService, "Routes recommendation calls", "JSON/HTTPS")
+Rel(apiGateway, reportingService, "Routes report calls", "JSON/HTTPS")
+Rel(telemetryService, eventBroker, "Publishes TelemetryReceived", "Kafka")
+Rel(alertService, eventBroker, "Consumes events; publishes AlertRaised", "Kafka")
+Rel(accessService, eventBroker, "Publishes AccessGranted and AccessRevoked", "Kafka")
+Rel(advisoryService, eventBroker, "Consumes events; publishes RecommendationIssued", "Kafka")
+Rel(reportingService, eventBroker, "Consumes telemetry and recommendation events", "Kafka")
+Rel(telemetryService, telemetryStore, "Reads and writes readings and devices", "SQL")
+Rel(alertService, alertDb, "Reads and writes rules, alerts and deliveries", "SQL")
+Rel(accessService, accessDb, "Reads and writes farms and grants", "SQL")
+Rel(advisoryService, advisoryDb, "Reads and writes recommendations", "SQL")
+Rel(reportingService, reportStore, "Stores generated reports", "S3 API")
+Rel(alertService, pushService, "Sends push alerts", "HTTPS")
+Rel(alertService, smsGateway, "Sends SMS when push is not delivered", "HTTPS")
+Rel(advisoryService, weatherProvider, "Fetches forecasts on a schedule", "JSON/HTTPS")
+Rel(pushService, mobileApp, "Delivers push notifications", "APNs/FCM")
+
+SHOW_LEGEND(false)
+@enduml

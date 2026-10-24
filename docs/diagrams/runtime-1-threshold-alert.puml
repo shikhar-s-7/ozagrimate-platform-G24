@@ -1,0 +1,46 @@
+@startuml runtime-1-threshold-alert
+!include <C4/C4_Sequence>
+' Generated from the same model as docs/architecture/workspace.dsl; edit both together.
+!include ozagrimate-theme.puml
+SHOW_PERSON_OUTLINE()
+SHOW_ELEMENT_DESCRIPTIONS()
+SHOW_INDEX()
+skinparam sequenceMessageAlign center
+title Runtime diagram 1: low soil moisture raises an alert, sent by push with SMS fallback
+
+System_Ext(iotNetwork, "IoT Sensor & Gateway Network", "Farm sensors and edge gateways; gateways buffer readings while offline.")
+Container(telemetryService, "Telemetry Ingestion Service", "Python, FastAPI", "Validates and de-duplicates readings; tracks device health and configuration.")
+ContainerQueue(eventBroker, "Event Broker", "Apache Kafka", "Carries telemetry, alert, grant and recommendation events between services.")
+Container_Boundary(alertService, "Alert & Notification Service")
+  Component(thresholdEvaluator, "Threshold Evaluator", "Kafka consumer", "Checks each reading in TelemetryReceived against the farm's rules.")
+  Component(ruleManager, "Rule Manager", "Python", "Thresholds stored as data per crop, region and metric; no redeploy to change.")
+  Component(alertManager, "Alert Manager", "Python", "Raises, stores and lists alerts; one open alert per rule and device.")
+  Component(notificationDispatcher, "Notification Dispatcher", "Python", "Sends each alert by push; falls back to SMS after 2 minutes.")
+  Component(deliveryTracker, "Delivery Tracker", "Python", "Records every push and SMS attempt; finds unconfirmed pushes.")
+Boundary_End()
+System_Ext(pushService, "Push Notification Service", "Delivers push notifications to phones (APNs, FCM).")
+System_Ext(smsGateway, "SMS Gateway", "Sends SMS messages to farmers' phones.")
+Person(farmer, "Farmer", "Checks readings and alerts, acts on irrigation advice and shares farm data.")
+
+Rel(iotNetwork, telemetryService, "Posts reading batch: DEV-1001 soil moisture 14.2 %", "JSON/HTTPS")
+Rel(telemetryService, eventBroker, "Publishes TelemetryReceived (key: FARM-001)", "Kafka")
+Rel(eventBroker, thresholdEvaluator, "Delivers TelemetryReceived", "Kafka")
+Rel(thresholdEvaluator, ruleManager, "Gets rules for WHEAT, RIVERINA-NSW, SOIL_MOISTURE")
+Rel(ruleManager, thresholdEvaluator, "RULE-001: minimum 20 %, maximum 45 %")
+Rel(thresholdEvaluator, alertManager, "Raises alert: 14.2 % is below the minimum")
+Rel(alertManager, eventBroker, "Publishes AlertRaised (key: FARM-001)", "Kafka")
+Rel(thresholdEvaluator, notificationDispatcher, "Dispatches ALERT-003")
+Rel(notificationDispatcher, pushService, "Sends push alert", "HTTPS")
+Rel(notificationDispatcher, deliveryTracker, "Records PUSH SENT")
+alt Push confirmed within 2 minutes
+  Rel(pushService, farmer, "Shows push alert on the phone", "APNs/FCM")
+  Rel(pushService, notificationDispatcher, "Confirms delivery", "HTTPS")
+  Rel(notificationDispatcher, deliveryTracker, "Records PUSH DELIVERED")
+else No confirmation after 2 minutes (phone out of coverage)
+  Rel(notificationDispatcher, deliveryTracker, "Asks for unconfirmed pushes (every 30 s)")
+  Rel(deliveryTracker, notificationDispatcher, "ALERT-003 push overdue")
+  Rel(notificationDispatcher, smsGateway, "Sends SMS, retried up to 3 times", "HTTPS")
+  Rel(smsGateway, farmer, "Texts the alert", "SMS")
+  Rel(notificationDispatcher, deliveryTracker, "Records SMS DELIVERED")
+end
+@enduml

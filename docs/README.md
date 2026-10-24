@@ -10,14 +10,14 @@
 
 | Diagram | Source | Owner |
 |---|---|---|
-| System context | `diagrams/system-context.puml` (to add) | Pranav |
+| System context | `diagrams/system-context.puml` | Pranav |
 | Container | `diagrams/container.puml` | Shikhar |
 | Component: Telemetry Ingestion Service | `diagrams/component-telemetry-ingestion.puml` | Shikhar |
-| Component: Alert & Notification Service | `diagrams/component-alert-notification.puml` (to add) | Pranav |
+| Component: Alert & Notification Service | `diagrams/component-alert-notification.puml` | Pranav |
 | Component: Farm & Access Service | `diagrams/component-farm-access.puml` | Shikhar |
-| Runtime 1: threshold alert, push then SMS | `diagrams/runtime-1-threshold-alert.puml` (to add) | Pranav |
-| Runtime 2: farmer grants access, agronomist views alerts | `diagrams/runtime-2-grant-access.puml` (to add) | Pranav |
-| Deployment | `diagrams/deployment.puml` (to add) | Pranav |
+| Runtime 1: threshold alert, push then SMS | `diagrams/runtime-1-threshold-alert.puml` | Pranav |
+| Runtime 2: farmer grants access, agronomist views alerts | `diagrams/runtime-2-grant-access.puml` | Pranav |
+| Deployment | `diagrams/deployment.puml` | Pranav |
 
 Component names are the package names in the code: Device Registry is `telemetry_ingestion/device_registry/`, Grant Manager is `farm_access/grant_manager/`, and so on (see the repository README).
 
@@ -28,6 +28,8 @@ The `.puml` files need PlantUML 1.2024 or newer, which bundles the C4-PlantUML l
 - `java -jar plantuml.jar -tpng -tsvg docs/diagrams/*.puml`
 - the PlantUML extension for VS Code;
 - the online server at https://www.plantuml.com/plantuml.
+
+Pranav's five diagrams include `ozagrimate-theme.puml`, which holds the shared settings below plus the green and sand colours of the Assignment 2 context diagram. Adding `!include ozagrimate-theme.puml` after the C4 include gives any diagram the same look. Large diagrams need `PLANTUML_LIMIT_SIZE=8192` so PlantUML does not crop them at 4096 px.
 
 To keep all eight diagrams looking the same, start every `.puml` file with the same settings as `container.puml`:
 
@@ -42,4 +44,4 @@ SHOW_LEGEND(false)
 
 `SHOW_LEGEND(false)` keeps the element type, such as «container» or «person», visible inside every box.
 
-`workspace.dsl` opens in Structurizr, for example by pasting it into the DSL editor at https://structurizr.com/dsl. It has commented slots for the system context, Alert & Notification component, dynamic and deployment views.
+`workspace.dsl` opens in Structurizr, for example by pasting it into the DSL editor at https://structurizr.com/dsl. It defines all eight views: system context, containers, the three component views, the two dynamic (runtime) views and the production deployment view. `structurizr-cli validate -workspace docs/architecture/workspace.dsl` checks it.
