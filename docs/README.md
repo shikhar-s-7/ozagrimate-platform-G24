@@ -29,7 +29,7 @@ The `.puml` files need PlantUML 1.2024 or newer, which bundles the C4-PlantUML l
 - the PlantUML extension for VS Code;
 - the online server at https://www.plantuml.com/plantuml.
 
-Pranav's five diagrams include `ozagrimate-theme.puml`, which holds the shared settings below plus the green and sand colours of the Assignment 2 context diagram. Adding `!include ozagrimate-theme.puml` after the C4 include gives any diagram the same look. Large diagrams need `PLANTUML_LIMIT_SIZE=8192` so PlantUML does not crop them at 4096 px.
+Large diagrams (container, deployment) need `PLANTUML_LIMIT_SIZE=8192`, or PlantUML crops them at 4096 px.
 
 To keep all eight diagrams looking the same, start every `.puml` file with the same settings as `container.puml`:
 
