@@ -1,0 +1,903 @@
+{
+  "info": {
+    "_postman_id": "9f14e20a-16a5-5112-8f51-050a38a59545",
+    "name": "OzAgriMate A4 - API endpoints",
+    "description": "Success and error requests for the OzAgriMate prototype. Run the folders in order after a fresh start of the services (data is in memory and seeded at start-up). Start everything with run_all.sh or run_all.bat from the repository root.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Telemetry Ingestion Service (8081) - endpoints #1-3",
+      "description": "Coded by Shikhar.",
+      "item": [
+        {
+          "name": "#1 POST readings - 202 accepted",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 202', () => pm.response.to.have.status(202));",
+                  "const ack = pm.response.json();",
+                  "pm.test('All three readings accepted', () => {",
+                  "    pm.expect(ack.accepted).to.eql(3);",
+                  "    pm.expect(ack.duplicates).to.eql(0);",
+                  "    pm.expect(ack.rejected).to.eql(0);",
+                  "    pm.expect(ack.farmId).to.eql('FARM-001');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{telemetryUrl}}/api/v1/telemetry/readings",
+              "host": [
+                "{{telemetryUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "telemetry",
+                "readings"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"gatewayId\": \"GW-01\",\n  \"readings\": [\n    {\n      \"deviceId\": \"DEV-1001\",\n      \"sequenceNo\": 101,\n      \"metric\": \"SOIL_MOISTURE\",\n      \"value\": 0.274,\n      \"unit\": \"fraction\",\n      \"capturedAt\": \"{{$isoTimestamp}}\"\n    },\n    {\n      \"deviceId\": \"DEV-1002\",\n      \"sequenceNo\": 57,\n      \"metric\": \"AIR_TEMPERATURE\",\n      \"value\": 75.2,\n      \"unit\": \"F\",\n      \"capturedAt\": \"{{$isoTimestamp}}\"\n    },\n    {\n      \"deviceId\": \"DEV-1002\",\n      \"sequenceNo\": 58,\n      \"metric\": \"RAINFALL\",\n      \"value\": 1.2,\n      \"unit\": \"mm\",\n      \"capturedAt\": \"{{$isoTimestamp}}\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Gateway GW-01 sends three readings in mixed units; all are accepted and normalised."
+          },
+          "response": []
+        },
+        {
+          "name": "#1 POST same batch again - 202 duplicates",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 202', () => pm.response.to.have.status(202));",
+                  "const ack = pm.response.json();",
+                  "pm.test('Every reading is counted as a duplicate', () => {",
+                  "    pm.expect(ack.accepted).to.eql(0);",
+                  "    pm.expect(ack.duplicates).to.eql(3);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{telemetryUrl}}/api/v1/telemetry/readings",
+              "host": [
+                "{{telemetryUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "telemetry",
+                "readings"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"gatewayId\": \"GW-01\",\n  \"readings\": [\n    {\n      \"deviceId\": \"DEV-1001\",\n      \"sequenceNo\": 101,\n      \"metric\": \"SOIL_MOISTURE\",\n      \"value\": 0.274,\n      \"unit\": \"fraction\",\n      \"capturedAt\": \"{{$isoTimestamp}}\"\n    },\n    {\n      \"deviceId\": \"DEV-1002\",\n      \"sequenceNo\": 57,\n      \"metric\": \"AIR_TEMPERATURE\",\n      \"value\": 75.2,\n      \"unit\": \"F\",\n      \"capturedAt\": \"{{$isoTimestamp}}\"\n    },\n    {\n      \"deviceId\": \"DEV-1002\",\n      \"sequenceNo\": 58,\n      \"metric\": \"RAINFALL\",\n      \"value\": 1.2,\n      \"unit\": \"mm\",\n      \"capturedAt\": \"{{$isoTimestamp}}\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "A gateway replays a batch after a connection drop; nothing is stored twice."
+          },
+          "response": []
+        },
+        {
+          "name": "#1 POST mixed batch - 202 with rejections",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 202', () => pm.response.to.have.status(202));",
+                  "const ack = pm.response.json();",
+                  "pm.test('One accepted, three rejected with reasons', () => {",
+                  "    pm.expect(ack.accepted).to.eql(1);",
+                  "    pm.expect(ack.rejections.map(r => r.reason)).to.eql(['UNSUPPORTED_UNIT', 'OUT_OF_RANGE', 'UNKNOWN_DEVICE']);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{telemetryUrl}}/api/v1/telemetry/readings",
+              "host": [
+                "{{telemetryUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "telemetry",
+                "readings"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"gatewayId\": \"GW-01\",\n  \"readings\": [\n    {\n      \"deviceId\": \"DEV-1001\",\n      \"sequenceNo\": 102,\n      \"metric\": \"SOIL_MOISTURE\",\n      \"value\": 29.1,\n      \"unit\": \"%\",\n      \"capturedAt\": \"{{$isoTimestamp}}\"\n    },\n    {\n      \"deviceId\": \"DEV-1001\",\n      \"sequenceNo\": 103,\n      \"metric\": \"SOIL_MOISTURE\",\n      \"value\": 20,\n      \"unit\": \"kPa\",\n      \"capturedAt\": \"{{$isoTimestamp}}\"\n    },\n    {\n      \"deviceId\": \"DEV-1002\",\n      \"sequenceNo\": 59,\n      \"metric\": \"AIR_TEMPERATURE\",\n      \"value\": 75,\n      \"unit\": \"C\",\n      \"capturedAt\": \"{{$isoTimestamp}}\"\n    },\n    {\n      \"deviceId\": \"DEV-2001\",\n      \"sequenceNo\": 881,\n      \"metric\": \"WATER_FLOW\",\n      \"value\": 12.5,\n      \"unit\": \"L/min\",\n      \"capturedAt\": \"{{$isoTimestamp}}\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "One good reading is kept; a bad unit, an impossible value and a device from another gateway are rejected."
+          },
+          "response": []
+        },
+        {
+          "name": "#1 POST empty batch - 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Error body has the agreed fields', () => {",
+                  "    pm.expect(pm.response.json()).to.have.all.keys('timestamp', 'status', 'error', 'message', 'path');",
+                  "});",
+                  "pm.test('Message explains the error', () => pm.expect(pm.response.json().message).to.include(\"readings\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{telemetryUrl}}/api/v1/telemetry/readings",
+              "host": [
+                "{{telemetryUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "telemetry",
+                "readings"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"gatewayId\": \"GW-01\",\n  \"readings\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "#1 POST unknown gateway - 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Error body has the agreed fields', () => {",
+                  "    pm.expect(pm.response.json()).to.have.all.keys('timestamp', 'status', 'error', 'message', 'path');",
+                  "});",
+                  "pm.test('Message explains the error', () => pm.expect(pm.response.json().message).to.include(\"Gateway GW-99 is not registered\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{telemetryUrl}}/api/v1/telemetry/readings",
+              "host": [
+                "{{telemetryUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "telemetry",
+                "readings"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"gatewayId\": \"GW-99\",\n  \"readings\": [\n    {\n      \"deviceId\": \"DEV-1001\",\n      \"sequenceNo\": 104,\n      \"metric\": \"SOIL_MOISTURE\",\n      \"value\": 30.2,\n      \"unit\": \"%\",\n      \"capturedAt\": \"{{$isoTimestamp}}\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "#2 GET DEV-1001 health - 200 ONLINE",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Device is ONLINE', () => pm.expect(pm.response.json().status).to.eql('ONLINE'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{telemetryUrl}}/api/v1/devices/DEV-1001/health",
+              "host": [
+                "{{telemetryUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "devices",
+                "DEV-1001",
+                "health"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "#2 GET DEV-2001 health - 200 OFFLINE",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Device is OFFLINE', () => pm.expect(pm.response.json().status).to.eql('OFFLINE'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{telemetryUrl}}/api/v1/devices/DEV-2001/health",
+              "host": [
+                "{{telemetryUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "devices",
+                "DEV-2001",
+                "health"
+              ]
+            },
+            "description": "DEV-2001 has been silent for two hours, so it is flagged OFFLINE (30-minute rule)."
+          },
+          "response": []
+        },
+        {
+          "name": "#2 GET unknown device health - 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Error body has the agreed fields', () => {",
+                  "    pm.expect(pm.response.json()).to.have.all.keys('timestamp', 'status', 'error', 'message', 'path');",
+                  "});",
+                  "pm.test('Message explains the error', () => pm.expect(pm.response.json().message).to.include(\"Device DEV-9999 is not registered\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{telemetryUrl}}/api/v1/devices/DEV-9999/health",
+              "host": [
+                "{{telemetryUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "devices",
+                "DEV-9999",
+                "health"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "#3 PUT DEV-1001 configuration - 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const config = pm.response.json();",
+                  "pm.test('New version waits for the device to sync', () => {",
+                  "    pm.expect(config.version).to.eql(2);",
+                  "    pm.expect(config.syncStatus).to.eql('PENDING_DEVICE_SYNC');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{telemetryUrl}}/api/v1/devices/DEV-1001/configuration",
+              "host": [
+                "{{telemetryUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "devices",
+                "DEV-1001",
+                "configuration"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"samplingIntervalSeconds\": 300,\n  \"reportingIntervalSeconds\": 900,\n  \"bufferWhenOffline\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "#3 PUT reporting shorter than sampling - 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Error body has the agreed fields', () => {",
+                  "    pm.expect(pm.response.json()).to.have.all.keys('timestamp', 'status', 'error', 'message', 'path');",
+                  "});",
+                  "pm.test('Message explains the error', () => pm.expect(pm.response.json().message).to.include(\"reportingIntervalSeconds must be greater than or equal to samplingIntervalSeconds\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{telemetryUrl}}/api/v1/devices/DEV-1001/configuration",
+              "host": [
+                "{{telemetryUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "devices",
+                "DEV-1001",
+                "configuration"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"samplingIntervalSeconds\": 900,\n  \"reportingIntervalSeconds\": 300,\n  \"bufferWhenOffline\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "#3 PUT unknown device configuration - 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Error body has the agreed fields', () => {",
+                  "    pm.expect(pm.response.json()).to.have.all.keys('timestamp', 'status', 'error', 'message', 'path');",
+                  "});",
+                  "pm.test('Message explains the error', () => pm.expect(pm.response.json().message).to.include(\"Device DEV-9999 is not registered\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{telemetryUrl}}/api/v1/devices/DEV-9999/configuration",
+              "host": [
+                "{{telemetryUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "devices",
+                "DEV-9999",
+                "configuration"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"samplingIntervalSeconds\": 300,\n  \"reportingIntervalSeconds\": 900,\n  \"bufferWhenOffline\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Alert & Notification Service (8082) - endpoints #4-6",
+      "description": "Coded by Pranav: add the requests for endpoints #4-6 here.",
+      "item": []
+    },
+    {
+      "name": "Farm & Access Service (8083) - endpoints #7-8",
+      "description": "Coded by Shikhar. X-User-Id stands in for the header the API Gateway adds after validating the caller's token.",
+      "item": [
+        {
+          "name": "#7 POST grant AGR-001 access - 201",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "const grant = pm.response.json();",
+                  "pm.test('Grant is ACTIVE and its URL is in Location', () => {",
+                  "    pm.expect(grant.status).to.eql('ACTIVE');",
+                  "    pm.expect(pm.response.headers.get('Location')).to.eql(`/api/v1/farms/FARM-001/access-grants/${grant.grantId}`);",
+                  "});",
+                  "pm.collectionVariables.set('newGrantId', grant.grantId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "FARMER-001"
+              }
+            ],
+            "url": {
+              "raw": "{{accessUrl}}/api/v1/farms/FARM-001/access-grants",
+              "host": [
+                "{{accessUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "farms",
+                "FARM-001",
+                "access-grants"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agronomistId\": \"AGR-001\",\n  \"scopes\": [\n    \"READ_TELEMETRY\",\n    \"READ_ALERTS\"\n  ],\n  \"expiresAt\": \"2027-06-30T00:00:00Z\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "FARMER-001 shares FARM-001 telemetry and alerts with AGR-001 until 30 June 2027."
+          },
+          "response": []
+        },
+        {
+          "name": "#7 POST same agronomist again - 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 409', () => pm.response.to.have.status(409));",
+                  "pm.test('Error body has the agreed fields', () => {",
+                  "    pm.expect(pm.response.json()).to.have.all.keys('timestamp', 'status', 'error', 'message', 'path');",
+                  "});",
+                  "pm.test('Message explains the error', () => pm.expect(pm.response.json().message).to.include(\"already has an active grant\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "FARMER-001"
+              }
+            ],
+            "url": {
+              "raw": "{{accessUrl}}/api/v1/farms/FARM-001/access-grants",
+              "host": [
+                "{{accessUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "farms",
+                "FARM-001",
+                "access-grants"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agronomistId\": \"AGR-001\",\n  \"scopes\": [\n    \"READ_TELEMETRY\",\n    \"READ_ALERTS\"\n  ],\n  \"expiresAt\": \"2027-06-30T00:00:00Z\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "#7 POST unknown agronomist - 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Error body has the agreed fields', () => {",
+                  "    pm.expect(pm.response.json()).to.have.all.keys('timestamp', 'status', 'error', 'message', 'path');",
+                  "});",
+                  "pm.test('Message explains the error', () => pm.expect(pm.response.json().message).to.include(\"Agronomist AGR-999 is not registered\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "FARMER-001"
+              }
+            ],
+            "url": {
+              "raw": "{{accessUrl}}/api/v1/farms/FARM-001/access-grants",
+              "host": [
+                "{{accessUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "farms",
+                "FARM-001",
+                "access-grants"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agronomistId\": \"AGR-999\",\n  \"scopes\": [\n    \"READ_TELEMETRY\",\n    \"READ_ALERTS\"\n  ],\n  \"expiresAt\": \"2027-06-30T00:00:00Z\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "#7 POST by a farmer who is not the owner - 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 403', () => pm.response.to.have.status(403));",
+                  "pm.test('Error body has the agreed fields', () => {",
+                  "    pm.expect(pm.response.json()).to.have.all.keys('timestamp', 'status', 'error', 'message', 'path');",
+                  "});",
+                  "pm.test('Message explains the error', () => pm.expect(pm.response.json().message).to.include(\"User FARMER-002 does not own farm FARM-001\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "FARMER-002"
+              }
+            ],
+            "url": {
+              "raw": "{{accessUrl}}/api/v1/farms/FARM-001/access-grants",
+              "host": [
+                "{{accessUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "farms",
+                "FARM-001",
+                "access-grants"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agronomistId\": \"AGR-002\",\n  \"scopes\": [\n    \"READ_TELEMETRY\",\n    \"READ_ALERTS\"\n  ],\n  \"expiresAt\": \"2027-06-30T00:00:00Z\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "#7 POST without X-User-Id - 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 401', () => pm.response.to.have.status(401));",
+                  "pm.test('Error body has the agreed fields', () => {",
+                  "    pm.expect(pm.response.json()).to.have.all.keys('timestamp', 'status', 'error', 'message', 'path');",
+                  "});",
+                  "pm.test('Message explains the error', () => pm.expect(pm.response.json().message).to.include(\"Missing X-User-Id header\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{accessUrl}}/api/v1/farms/FARM-001/access-grants",
+              "host": [
+                "{{accessUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "farms",
+                "FARM-001",
+                "access-grants"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agronomistId\": \"AGR-001\",\n  \"scopes\": [\n    \"READ_TELEMETRY\",\n    \"READ_ALERTS\"\n  ],\n  \"expiresAt\": \"2027-06-30T00:00:00Z\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "#8 DELETE GRANT-001 - 204",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 204', () => pm.response.to.have.status(204));",
+                  "pm.test('No response body', () => pm.expect(pm.response.text()).to.eql(''));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "FARMER-001"
+              }
+            ],
+            "url": {
+              "raw": "{{accessUrl}}/api/v1/farms/FARM-001/access-grants/GRANT-001",
+              "host": [
+                "{{accessUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "farms",
+                "FARM-001",
+                "access-grants",
+                "GRANT-001"
+              ]
+            },
+            "description": "FARMER-001 stops sharing FARM-001 with AGR-002."
+          },
+          "response": []
+        },
+        {
+          "name": "#8 DELETE GRANT-001 again - 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Error body has the agreed fields', () => {",
+                  "    pm.expect(pm.response.json()).to.have.all.keys('timestamp', 'status', 'error', 'message', 'path');",
+                  "});",
+                  "pm.test('Message explains the error', () => pm.expect(pm.response.json().message).to.include(\"No active grant GRANT-001 on farm FARM-001\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "FARMER-001"
+              }
+            ],
+            "url": {
+              "raw": "{{accessUrl}}/api/v1/farms/FARM-001/access-grants/GRANT-001",
+              "host": [
+                "{{accessUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "farms",
+                "FARM-001",
+                "access-grants",
+                "GRANT-001"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "telemetryUrl",
+      "value": "http://localhost:8081"
+    },
+    {
+      "key": "alertsUrl",
+      "value": "http://localhost:8082"
+    },
+    {
+      "key": "accessUrl",
+      "value": "http://localhost:8083"
+    },
+    {
+      "key": "newGrantId",
+      "value": ""
+    }
+  ]
+}

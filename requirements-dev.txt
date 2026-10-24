@@ -1,0 +1,5 @@
+-r requirements.txt
+pytest==9.1.1
+# FastAPI's TestClient uses httpx2 on Python 3.11+ and httpx on Python 3.10.
+httpx2==2.16.0 ; python_version >= "3.11"
+httpx==0.28.1 ; python_version < "3.11"

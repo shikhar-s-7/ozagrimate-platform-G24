@@ -1,0 +1,46 @@
+@startuml component-telemetry-ingestion
+!include <C4/C4_Component>
+' Generated from the same model as docs/architecture/workspace.dsl; edit both together.
+skinparam dpi 150
+skinparam wrapWidth 220
+skinparam defaultFontName Arial
+SHOW_PERSON_OUTLINE()
+LAYOUT_TOP_DOWN()
+title Component diagram: Telemetry Ingestion Service
+
+Container(apiGateway, "API Gateway", "NGINX", "Validates tokens, sets X-User-Id, rate-limits and routes /api/v1 calls.")
+System_Ext(iotNetwork, "IoT Sensor & Gateway Network", "Farm sensors and edge gateways; gateways buffer readings while offline.")
+ContainerDb(telemetryStore, "Telemetry Store", "TimescaleDB", "Readings kept for 24 months; devices and their configuration.")
+ContainerQueue(eventBroker, "Event Broker", "Apache Kafka", "Carries telemetry, alert, grant and recommendation events between services.")
+
+Container_Boundary(telemetryService, "Telemetry Ingestion Service [Python, FastAPI]") {
+  Component(telemetryApi, "Telemetry API", "FastAPI router", "Endpoints #1-3: ingest readings, device health, device configuration.")
+  Component(ingestionPipeline, "Ingestion Pipeline", "Python", "Runs each batch through adapters, checks, storage and publishing; holds no state.")
+  Component(protocolAdapters, "Protocol Adapters", "Python", "Turn HTTPS JSON and MQTT payloads into one canonical batch.")
+  Component(validator, "Validator", "Python", "Checks metric per device type, converts units, rejects impossible values.")
+  Component(duplicateFilter, "Duplicate Filter", "Python", "Drops replayed readings by deviceId and sequenceNo.")
+  Component(readingStore, "Reading Store", "Python repository", "Saves accepted readings.")
+  Component(deviceRegistry, "Device Registry", "Python", "Gateways and devices; offline after 30 minutes; configuration versions.")
+  Component(eventPublisher, "Event Publisher", "Kafka producer", "Publishes TelemetryReceived, keyed by farmId.")
+}
+
+Rel(apiGateway, telemetryApi, "Routes device health and configuration calls (#2, #3)", "JSON/HTTPS")
+Rel(iotNetwork, telemetryApi, "Posts reading batches (#1)", "JSON/HTTPS")
+Rel(iotNetwork, ingestionPipeline, "Publishes compact reading rows", "MQTT")
+Rel(telemetryApi, ingestionPipeline, "Hands over each batch")
+Rel(telemetryApi, deviceRegistry, "Reads health; replaces configuration")
+Rel(ingestionPipeline, protocolAdapters, "Converts the payload to a canonical batch")
+Rel(ingestionPipeline, deviceRegistry, "Checks gateway and devices; records contact")
+Rel(ingestionPipeline, duplicateFilter, "Skips readings already accepted")
+Rel(ingestionPipeline, validator, "Validates and normalises each reading")
+Rel(ingestionPipeline, readingStore, "Saves accepted readings")
+Rel(ingestionPipeline, eventPublisher, "Publishes the accepted readings")
+Rel(duplicateFilter, telemetryStore, "Checks the deviceId + sequenceNo key", "SQL")
+Rel(readingStore, telemetryStore, "Writes readings", "SQL")
+Rel(deviceRegistry, telemetryStore, "Reads and writes devices", "SQL")
+Rel_Back(iotNetwork, deviceRegistry, "Pushes pending configuration", "MQTT")
+Rel(eventPublisher, eventBroker, "Publishes TelemetryReceived (key: farmId)", "Kafka")
+
+Lay_R(iotNetwork, apiGateway)
+SHOW_LEGEND(false)
+@enduml
