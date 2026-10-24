@@ -1,7 +1,9 @@
 @startuml deployment
 !include <C4/C4_Deployment>
 ' Generated from the same model as docs/architecture/workspace.dsl; edit both together.
-!include ozagrimate-theme.puml
+skinparam dpi 150
+skinparam wrapWidth 220
+skinparam defaultFontName Arial
 SHOW_PERSON_OUTLINE()
 LAYOUT_LEFT_RIGHT()
 skinparam nodesep 30

@@ -1,7 +1,9 @@
 @startuml runtime-2-grant-access
 !include <C4/C4_Sequence>
 ' Generated from the same model as docs/architecture/workspace.dsl; edit both together.
-!include ozagrimate-theme.puml
+skinparam dpi 150
+skinparam wrapWidth 220
+skinparam defaultFontName Arial
 SHOW_PERSON_OUTLINE()
 SHOW_ELEMENT_DESCRIPTIONS()
 SHOW_INDEX()

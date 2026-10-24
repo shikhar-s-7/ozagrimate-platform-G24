@@ -9,7 +9,7 @@ workspace "OzAgriMate Platform" "C4 model of the OzAgriMate digital agriculture 
         // ---------- People ----------
         farmer = person "Farmer" "Checks readings and alerts, acts on irrigation advice and shares farm data."
         agronomist = person "Agronomist" "Advises client farms remotely using the data farmers share."
-        operationsStaff = person "Operations Staff" "Monitor platform health and capacity and support users."
+        operationsStaff = person "Operations Staff" "Monitors platform health and capacity, and supports users."
 
         // ---------- External software systems ----------
         iotNetwork = softwareSystem "IoT Sensor & Gateway Network" "Farm sensors and edge gateways; gateways buffer readings while offline." "External"
@@ -67,16 +67,16 @@ workspace "OzAgriMate Platform" "C4 model of the OzAgriMate digital agriculture 
         farmer -> ozAgriMate "Checks readings, alerts and advice; shares farm data with agronomists"
         agronomist -> ozAgriMate "Reviews shared farm data and gives advice"
         operationsStaff -> ozAgriMate "Monitors platform health and devices"
-        iotNetwork -> ozAgriMate "Sends sensor readings, replaying buffered data" "MQTT, JSON/HTTPS"
-        ozAgriMate -> iotNetwork "Pushes device configuration" "MQTT"
-        ozAgriMate -> irrigationControl "Sends approved watering schedules" "HTTPS"
-        ozAgriMate -> weatherProvider "Fetches forecasts on a schedule" "JSON/HTTPS"
-        ozAgriMate -> identityProvider "Validates users' access tokens" "OIDC/HTTPS"
-        ozAgriMate -> pushService "Sends push alerts" "HTTPS"
-        ozAgriMate -> smsGateway "Sends SMS when a push is not delivered" "HTTPS"
-        pushToFarmer = pushService -> farmer "Delivers push alerts to the farmer's phone" "APNs/FCM"
-        ozAgriMate -> regulator "Submits scheduled usage reports" "HTTPS"
-        ozAgriMate -> marketplace "Links farmers to supplies and produce listings" "HTTPS"
+        iotNetwork -> ozAgriMate "Sends sensor readings, replaying buffered data"
+        ozAgriMate -> iotNetwork "Pushes device configuration"
+        ozAgriMate -> irrigationControl "Sends approved watering schedules"
+        ozAgriMate -> weatherProvider "Fetches forecasts on a schedule"
+        ozAgriMate -> identityProvider "Validates users' access tokens"
+        ozAgriMate -> pushService "Sends push alerts"
+        ozAgriMate -> smsGateway "Sends SMS when a push is not delivered"
+        pushToFarmer = pushService -> farmer "Delivers push alerts to the farmer's phone"
+        ozAgriMate -> regulator "Submits scheduled usage reports"
+        ozAgriMate -> marketplace "Links farmers to supplies and produce listings"
 
         // ---------- Container relationships (container view) ----------
         farmer -> mobileApp "Checks readings, alerts and advice; shares farm data"

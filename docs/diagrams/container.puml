@@ -12,7 +12,7 @@ title Container diagram: OzAgriMate Platform
 
 Person(farmer, "Farmer", "Checks readings and alerts, acts on irrigation advice and shares farm data.")
 Person(agronomist, "Agronomist", "Advises client farms remotely using the data farmers share.")
-Person(operationsStaff, "Operations Staff", "Monitor platform health and capacity and support users.")
+Person(operationsStaff, "Operations Staff", "Monitors platform health and capacity, and supports users.")
 
 System_Boundary(ozAgriMate, "OzAgriMate Platform") {
   Container(mobileApp, "Farmer Mobile App", "React Native", "Shows readings, alerts and advice; works on patchy rural coverage.")

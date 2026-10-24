@@ -1,7 +1,9 @@
 @startuml system-context
 !include <C4/C4_Context>
 ' Generated from the same model as docs/architecture/workspace.dsl; edit both together.
-!include ozagrimate-theme.puml
+skinparam dpi 150
+skinparam wrapWidth 220
+skinparam defaultFontName Arial
 SHOW_PERSON_OUTLINE()
 LAYOUT_TOP_DOWN()
 skinparam nodesep 60
@@ -10,7 +12,7 @@ title System context diagram: OzAgriMate Platform
 
 Person(farmer, "Farmer", "Checks readings and alerts, acts on irrigation advice and shares farm data.")
 Person(agronomist, "Agronomist", "Advises client farms remotely using the data farmers share.")
-Person(operationsStaff, "Operations Staff", "Monitor platform health and capacity and support users.")
+Person(operationsStaff, "Operations Staff", "Monitors platform health and capacity, and supports users.")
 
 System(ozAgriMate, "OzAgriMate Platform", "Collects farm IoT data, raises alerts and gives AI-assisted irrigation advice.")
 
@@ -26,17 +28,17 @@ System_Ext(marketplace, "Agricultural Marketplace", "Third-party marketplace for
 Rel_D(farmer, ozAgriMate, "Checks readings, alerts and advice; shares farm data with agronomists")
 Rel_D(agronomist, ozAgriMate, "Reviews shared farm data and gives advice")
 Rel_D(operationsStaff, ozAgriMate, "Monitors platform health and devices")
-Rel_U(iotNetwork, ozAgriMate, "Sends sensor readings, replaying buffered data", "MQTT, JSON/HTTPS")
-Rel_D(ozAgriMate, iotNetwork, "Pushes device configuration", "MQTT")
-Rel_D(ozAgriMate, weatherProvider, "Fetches forecasts on a schedule", "JSON/HTTPS")
-Rel_D(ozAgriMate, identityProvider, "Validates users' access tokens", "OIDC/HTTPS")
-Rel_L(ozAgriMate, pushService, "Sends push alerts", "HTTPS")
-Rel_L(ozAgriMate, smsGateway, "Sends SMS when a push is not delivered", "HTTPS")
-Rel_U(pushService, farmer, "Delivers push alerts to the farmer's phone", "APNs/FCM")
-Rel_U(smsGateway, farmer, "Texts critical alerts", "SMS")
-Rel_R(ozAgriMate, irrigationControl, "Sends approved watering schedules", "HTTPS")
-Rel_D(ozAgriMate, regulator, "Submits scheduled usage reports", "HTTPS")
-Rel_D(ozAgriMate, marketplace, "Links farmers to supplies and produce listings", "HTTPS")
+Rel_U(iotNetwork, ozAgriMate, "Sends sensor readings, replaying buffered data")
+Rel_D(ozAgriMate, iotNetwork, "Pushes device configuration")
+Rel_D(ozAgriMate, weatherProvider, "Fetches forecasts on a schedule")
+Rel_D(ozAgriMate, identityProvider, "Validates users' access tokens")
+Rel_L(ozAgriMate, pushService, "Sends push alerts")
+Rel_L(ozAgriMate, smsGateway, "Sends SMS when a push is not delivered")
+Rel_U(pushService, farmer, "Delivers push alerts to the farmer's phone")
+Rel_U(smsGateway, farmer, "Texts critical alerts")
+Rel_R(ozAgriMate, irrigationControl, "Sends approved watering schedules")
+Rel_D(ozAgriMate, regulator, "Submits scheduled usage reports")
+Rel_D(ozAgriMate, marketplace, "Links farmers to supplies and produce listings")
 
 Lay_R(farmer, agronomist)
 Lay_R(agronomist, operationsStaff)
