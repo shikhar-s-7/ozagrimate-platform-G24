@@ -521,8 +521,511 @@
     },
     {
       "name": "Alert & Notification Service (8082) - endpoints #4-6",
-      "description": "Coded by Pranav: add the requests for endpoints #4-6 here.",
-      "item": []
+      "description": "Coded by Pranav. X-User-Id stands in for the header the API Gateway adds after validating the caller's token.",
+      "item": [
+        {
+          "name": "#4 GET FARM-001 OPEN alerts as owner - 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Only OPEN alerts for FARM-001 are listed', () => {",
+                  "    pm.expect(body.farmId).to.eql('FARM-001');",
+                  "    pm.expect(body.status).to.eql('OPEN');",
+                  "    pm.expect(body.count).to.eql(body.alerts.length);",
+                  "    body.alerts.forEach(alert => pm.expect(alert.status).to.eql('OPEN'));",
+                  "});",
+                  "pm.test('ALERT-003 was delivered by SMS after the push was not confirmed (ADR-04)', () => {",
+                  "    const alert = body.alerts.find(a => a.alertId === 'ALERT-003');",
+                  "    pm.expect(alert.deliveryStatus).to.eql('SMS_DELIVERED');",
+                  "    pm.expect(alert.deliveryAttempts).to.eql(2);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "FARMER-001"
+              }
+            ],
+            "url": {
+              "raw": "{{alertsUrl}}/api/v1/farms/FARM-001/alerts?status=OPEN",
+              "host": [
+                "{{alertsUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "farms",
+                "FARM-001",
+                "alerts"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "OPEN"
+                }
+              ]
+            },
+            "description": "FARMER-001 owns FARM-001. ALERT-003 (soil moisture 14.2 % below the 20 % minimum) was raised while the farmer's phone had no coverage, so the push was never confirmed and the SMS fallback delivered it."
+          },
+          "response": []
+        },
+        {
+          "name": "#4 GET FARM-001 all alerts as granted agronomist AGR-002 - 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Without a status filter every alert is listed, newest first', () => {",
+                  "    pm.expect(body.status).to.eql(null);",
+                  "    pm.expect(body.alerts.map(a => a.alertId)).to.eql(['ALERT-003', 'ALERT-002', 'ALERT-001']);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "AGR-002"
+              }
+            ],
+            "url": {
+              "raw": "{{alertsUrl}}/api/v1/farms/FARM-001/alerts",
+              "host": [
+                "{{alertsUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "farms",
+                "FARM-001",
+                "alerts"
+              ]
+            },
+            "description": "GRANT-001 lets AGR-002 read FARM-001's alerts (READ_ALERTS scope), so the agronomist is allowed in (ADR-05)."
+          },
+          "response": []
+        },
+        {
+          "name": "#4 GET unknown status - 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Error body has the agreed fields', () => {",
+                  "    pm.expect(pm.response.json()).to.have.all.keys('timestamp', 'status', 'error', 'message', 'path');",
+                  "});",
+                  "pm.test('Message explains the error', () => pm.expect(pm.response.json().message).to.include(\"Input should be 'OPEN', 'ACKNOWLEDGED' or 'RESOLVED'\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "FARMER-001"
+              }
+            ],
+            "url": {
+              "raw": "{{alertsUrl}}/api/v1/farms/FARM-001/alerts?status=CLOSED",
+              "host": [
+                "{{alertsUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "farms",
+                "FARM-001",
+                "alerts"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "CLOSED"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "#4 GET unknown farm - 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Error body has the agreed fields', () => {",
+                  "    pm.expect(pm.response.json()).to.have.all.keys('timestamp', 'status', 'error', 'message', 'path');",
+                  "});",
+                  "pm.test('Message explains the error', () => pm.expect(pm.response.json().message).to.include(\"Farm FARM-999 does not exist\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "FARMER-001"
+              }
+            ],
+            "url": {
+              "raw": "{{alertsUrl}}/api/v1/farms/FARM-999/alerts?status=OPEN",
+              "host": [
+                "{{alertsUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "farms",
+                "FARM-999",
+                "alerts"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "OPEN"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "#4 GET as agronomist without a grant - 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 403', () => pm.response.to.have.status(403));",
+                  "pm.test('Error body has the agreed fields', () => {",
+                  "    pm.expect(pm.response.json()).to.have.all.keys('timestamp', 'status', 'error', 'message', 'path');",
+                  "});",
+                  "pm.test('Message explains the error', () => pm.expect(pm.response.json().message).to.include(\"User AGR-001 has no access to the alerts of farm FARM-001\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "AGR-001"
+              }
+            ],
+            "url": {
+              "raw": "{{alertsUrl}}/api/v1/farms/FARM-001/alerts?status=OPEN",
+              "host": [
+                "{{alertsUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "farms",
+                "FARM-001",
+                "alerts"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "OPEN"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "#4 GET without X-User-Id - 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 401', () => pm.response.to.have.status(401));",
+                  "pm.test('Error body has the agreed fields', () => {",
+                  "    pm.expect(pm.response.json()).to.have.all.keys('timestamp', 'status', 'error', 'message', 'path');",
+                  "});",
+                  "pm.test('Message explains the error', () => pm.expect(pm.response.json().message).to.include(\"Missing X-User-Id header\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{alertsUrl}}/api/v1/farms/FARM-001/alerts?status=OPEN",
+              "host": [
+                "{{alertsUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "farms",
+                "FARM-001",
+                "alerts"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "OPEN"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "#5 PUT RULE-001 new limits - 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const rule = pm.response.json();",
+                  "pm.test('Rule has the new limits as version 2', () => {",
+                  "    pm.expect(rule.ruleId).to.eql('RULE-001');",
+                  "    pm.expect(rule.minValue).to.eql(22.5);",
+                  "    pm.expect(rule.maxValue).to.eql(45);",
+                  "    pm.expect(rule.unit).to.eql('%');",
+                  "    pm.expect(rule.version).to.eql(2);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{alertsUrl}}/api/v1/alert-rules/RULE-001",
+              "host": [
+                "{{alertsUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "alert-rules",
+                "RULE-001"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cropType\": \"WHEAT\",\n  \"region\": \"RIVERINA-NSW\",\n  \"metric\": \"SOIL_MOISTURE\",\n  \"minValue\": 22.5,\n  \"maxValue\": 45,\n  \"severity\": \"CRITICAL\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "An agronomist raises the wheat soil-moisture minimum for the Riverina from 20 % to 22.5 %. The next reading is checked against it with no redeployment (ADR-08)."
+          },
+          "response": []
+        },
+        {
+          "name": "#5 PUT minimum not below maximum - 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Error body has the agreed fields', () => {",
+                  "    pm.expect(pm.response.json()).to.have.all.keys('timestamp', 'status', 'error', 'message', 'path');",
+                  "});",
+                  "pm.test('Message explains the error', () => pm.expect(pm.response.json().message).to.include(\"minValue must be below maxValue\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{alertsUrl}}/api/v1/alert-rules/RULE-001",
+              "host": [
+                "{{alertsUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "alert-rules",
+                "RULE-001"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cropType\": \"WHEAT\",\n  \"region\": \"RIVERINA-NSW\",\n  \"metric\": \"SOIL_MOISTURE\",\n  \"minValue\": 50,\n  \"maxValue\": 45,\n  \"severity\": \"CRITICAL\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "#5 PUT unknown rule - 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Error body has the agreed fields', () => {",
+                  "    pm.expect(pm.response.json()).to.have.all.keys('timestamp', 'status', 'error', 'message', 'path');",
+                  "});",
+                  "pm.test('Message explains the error', () => pm.expect(pm.response.json().message).to.include(\"Alert rule RULE-999 does not exist\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{alertsUrl}}/api/v1/alert-rules/RULE-999",
+              "host": [
+                "{{alertsUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "alert-rules",
+                "RULE-999"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cropType\": \"WHEAT\",\n  \"region\": \"RIVERINA-NSW\",\n  \"metric\": \"SOIL_MOISTURE\",\n  \"minValue\": 22.5,\n  \"maxValue\": 45,\n  \"severity\": \"CRITICAL\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "#6 DELETE RULE-005 - 204",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 204', () => pm.response.to.have.status(204));",
+                  "pm.test('Body is empty', () => pm.expect(pm.response.text()).to.eql(''));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{alertsUrl}}/api/v1/alert-rules/RULE-005",
+              "host": [
+                "{{alertsUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "alert-rules",
+                "RULE-005"
+              ]
+            },
+            "description": "Removes the wheat soil-temperature rule for the Riverina."
+          },
+          "response": []
+        },
+        {
+          "name": "#6 DELETE RULE-005 again - 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Error body has the agreed fields', () => {",
+                  "    pm.expect(pm.response.json()).to.have.all.keys('timestamp', 'status', 'error', 'message', 'path');",
+                  "});",
+                  "pm.test('Message explains the error', () => pm.expect(pm.response.json().message).to.include(\"Alert rule RULE-005 does not exist\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{alertsUrl}}/api/v1/alert-rules/RULE-005",
+              "host": [
+                "{{alertsUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "alert-rules",
+                "RULE-005"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
     },
     {
       "name": "Farm & Access Service (8083) - endpoints #7-8",
