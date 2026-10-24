@@ -95,7 +95,8 @@ python -m uvicorn telemetry_ingestion.main:app --app-dir services/telemetry-inge
 ## Test it
 
 - **Automated:** `python -m pytest` from the repository root runs every service's tests.
-- **Postman:** import `postman/OzAgriMate.postman_collection.json` and run it with the Collection Runner. The folders hold a success request and the error requests for each endpoint, with checks on every response. Data is in memory and seeded at start-up, so restart the services before a full run.
+- **Postman:** import `postman/OzAgriMate.postman_collection.json` and `postman/OzAgriMate.postman_environment.json`, select the **OzAgriMate local** environment, and run the collection with the Collection Runner. The folders hold a success request and the error requests for each endpoint (33 requests, with checks on every response). Data is in memory and seeded at start-up, so restart the services before a full run.
+- **Command line:** with the services running, `npx newman run postman/OzAgriMate.postman_collection.json -e postman/OzAgriMate.postman_environment.json` runs the same collection without the Postman app.
 
 ## Conventions
 

@@ -580,6 +580,56 @@
           "response": []
         },
         {
+          "name": "#4 GET FARM-001 RESOLVED alerts as owner - 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Only the resolved alert is listed', () => {",
+                  "    pm.expect(body.status).to.eql('RESOLVED');",
+                  "    pm.expect(body.alerts.map(a => a.alertId)).to.eql(['ALERT-001']);",
+                  "    pm.expect(body.alerts[0].deliveryStatus).to.eql('PUSH_DELIVERED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "FARMER-001"
+              }
+            ],
+            "url": {
+              "raw": "{{alertsUrl}}/api/v1/farms/FARM-001/alerts?status=RESOLVED",
+              "host": [
+                "{{alertsUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "farms",
+                "FARM-001",
+                "alerts"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "RESOLVED"
+                }
+              ]
+            },
+            "description": "The status filter also accepts ACKNOWLEDGED and RESOLVED. ALERT-001 was resolved when soil moisture recovered."
+          },
+          "response": []
+        },
+        {
           "name": "#4 GET FARM-001 all alerts as granted agronomist AGR-002 - 200",
           "event": [
             {
@@ -860,6 +910,102 @@
           "response": []
         },
         {
+          "name": "#5 PUT RULE-001 same body again - 200 unchanged",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('PUT is idempotent: the version stays at 2', () => pm.expect(pm.response.json().version).to.eql(2));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{alertsUrl}}/api/v1/alert-rules/RULE-001",
+              "host": [
+                "{{alertsUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "alert-rules",
+                "RULE-001"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cropType\": \"WHEAT\",\n  \"region\": \"RIVERINA-NSW\",\n  \"metric\": \"SOIL_MOISTURE\",\n  \"minValue\": 22.5,\n  \"maxValue\": 45,\n  \"severity\": \"CRITICAL\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sending the same rule again changes nothing, so the version does not increase."
+          },
+          "response": []
+        },
+        {
+          "name": "#5 PUT unknown metric - 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Error body has the agreed fields', () => {",
+                  "    pm.expect(pm.response.json()).to.have.all.keys('timestamp', 'status', 'error', 'message', 'path');",
+                  "});",
+                  "pm.test('Message explains the error', () => pm.expect(pm.response.json().message).to.include(\"metric: Input should be\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{alertsUrl}}/api/v1/alert-rules/RULE-001",
+              "host": [
+                "{{alertsUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "alert-rules",
+                "RULE-001"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cropType\": \"WHEAT\",\n  \"region\": \"RIVERINA-NSW\",\n  \"metric\": \"HUMIDITY\",\n  \"minValue\": 22.5,\n  \"maxValue\": 45,\n  \"severity\": \"CRITICAL\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
           "name": "#5 PUT minimum not below maximum - 400",
           "event": [
             {
@@ -1022,6 +1168,56 @@
                 "RULE-005"
               ]
             }
+          },
+          "response": []
+        },
+        {
+          "name": "#6 PUT the deleted RULE-005 - 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Error body has the agreed fields', () => {",
+                  "    pm.expect(pm.response.json()).to.have.all.keys('timestamp', 'status', 'error', 'message', 'path');",
+                  "});",
+                  "pm.test('Message explains the error', () => pm.expect(pm.response.json().message).to.include(\"Alert rule RULE-005 does not exist\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{alertsUrl}}/api/v1/alert-rules/RULE-005",
+              "host": [
+                "{{alertsUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "alert-rules",
+                "RULE-005"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cropType\": \"WHEAT\",\n  \"region\": \"RIVERINA-NSW\",\n  \"metric\": \"SOIL_TEMPERATURE\",\n  \"minValue\": 5,\n  \"maxValue\": 35,\n  \"severity\": \"WARNING\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "After the delete, the rule cannot be replaced either."
           },
           "response": []
         }
