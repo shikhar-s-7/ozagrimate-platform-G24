@@ -5,10 +5,19 @@ from ozagrimate_common import ErrorBody
 
 from ..rule_manager.models import AlertRule
 from ..rule_manager.service import RuleManager
-from .dependencies import get_rule_manager
+from .dependencies import get_rule_manager, require_rule_editor
 from .schemas import AlertRuleRequest, AlertRuleResponse
 
-router = APIRouter(prefix="/api/v1/alert-rules", tags=["Alert API"])
+# Every rule change needs an agronomist or operations staff caller.
+router = APIRouter(
+    prefix="/api/v1/alert-rules",
+    tags=["Alert API"],
+    dependencies=[Depends(require_rule_editor)],
+    responses={
+        401: {"model": ErrorBody, "description": "No X-User-Id header"},
+        403: {"model": ErrorBody, "description": "Caller is not an agronomist or operations staff"},
+    },
+)
 
 
 def _to_response(rule: AlertRule) -> AlertRuleResponse:

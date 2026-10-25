@@ -34,7 +34,8 @@ def create_app(clock: Callable[[], datetime] = utc_now) -> FastAPI:
         version="1.0.0",
         description=(
             "Endpoints #4-6: list a farm's alerts, replace an alert rule, delete an alert rule. "
-            "The API Gateway sets the X-User-Id header after validating the caller's token."
+            "The API Gateway sets the X-User-Id header after validating the caller's token, "
+            "and X-User-Role for the alert-rule calls."
         ),
     )
     register_error_handlers(app)

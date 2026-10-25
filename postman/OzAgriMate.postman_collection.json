@@ -521,7 +521,7 @@
     },
     {
       "name": "Alert & Notification Service (8082) - endpoints #4-6",
-      "description": "Coded by Pranav. X-User-Id stands in for the header the API Gateway adds after validating the caller's token.",
+      "description": "Coded by Pranav. X-User-Id and X-User-Role stand in for the headers the API Gateway adds after validating the caller's token.",
       "item": [
         {
           "name": "#4 GET FARM-001 OPEN alerts as owner - 200",
@@ -882,6 +882,14 @@
               {
                 "key": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "AGR-001"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "AGRONOMIST"
               }
             ],
             "url": {
@@ -929,6 +937,14 @@
               {
                 "key": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "AGR-001"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "AGRONOMIST"
               }
             ],
             "url": {
@@ -979,6 +995,14 @@
               {
                 "key": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "AGR-001"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "AGRONOMIST"
               }
             ],
             "url": {
@@ -1028,6 +1052,14 @@
               {
                 "key": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "AGR-001"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "AGRONOMIST"
               }
             ],
             "url": {
@@ -1077,6 +1109,14 @@
               {
                 "key": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "AGR-001"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "AGRONOMIST"
               }
             ],
             "url": {
@@ -1104,6 +1144,204 @@
           "response": []
         },
         {
+          "name": "#5 PUT without X-User-Id - 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 401', () => pm.response.to.have.status(401));",
+                  "pm.test('Error body has the agreed fields', () => {",
+                  "    pm.expect(pm.response.json()).to.have.all.keys('timestamp', 'status', 'error', 'message', 'path');",
+                  "});",
+                  "pm.test('Message explains the error', () => pm.expect(pm.response.json().message).to.include(\"Missing X-User-Id header\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "AGRONOMIST"
+              }
+            ],
+            "url": {
+              "raw": "{{alertsUrl}}/api/v1/alert-rules/RULE-001",
+              "host": [
+                "{{alertsUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "alert-rules",
+                "RULE-001"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cropType\": \"WHEAT\",\n  \"region\": \"RIVERINA-NSW\",\n  \"metric\": \"SOIL_MOISTURE\",\n  \"minValue\": 30,\n  \"maxValue\": 45,\n  \"severity\": \"CRITICAL\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "The API Gateway always sets X-User-Id after validating the token, so a call without it is rejected."
+          },
+          "response": []
+        },
+        {
+          "name": "#5 PUT as farmer - 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 403', () => pm.response.to.have.status(403));",
+                  "pm.test('Error body has the agreed fields', () => {",
+                  "    pm.expect(pm.response.json()).to.have.all.keys('timestamp', 'status', 'error', 'message', 'path');",
+                  "});",
+                  "pm.test('Message explains the error', () => pm.expect(pm.response.json().message).to.include(\"User FARMER-001 may not change alert rules\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "FARMER-001"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "FARMER"
+              }
+            ],
+            "url": {
+              "raw": "{{alertsUrl}}/api/v1/alert-rules/RULE-001",
+              "host": [
+                "{{alertsUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "alert-rules",
+                "RULE-001"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cropType\": \"WHEAT\",\n  \"region\": \"RIVERINA-NSW\",\n  \"metric\": \"SOIL_MOISTURE\",\n  \"minValue\": 30,\n  \"maxValue\": 45,\n  \"severity\": \"CRITICAL\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "A rule applies to every farm with that crop in that region, so only agronomists and operations staff may change it."
+          },
+          "response": []
+        },
+        {
+          "name": "#6 DELETE without X-User-Id - 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 401', () => pm.response.to.have.status(401));",
+                  "pm.test('Error body has the agreed fields', () => {",
+                  "    pm.expect(pm.response.json()).to.have.all.keys('timestamp', 'status', 'error', 'message', 'path');",
+                  "});",
+                  "pm.test('Message explains the error', () => pm.expect(pm.response.json().message).to.include(\"Missing X-User-Id header\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-User-Role",
+                "value": "AGRONOMIST"
+              }
+            ],
+            "url": {
+              "raw": "{{alertsUrl}}/api/v1/alert-rules/RULE-005",
+              "host": [
+                "{{alertsUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "alert-rules",
+                "RULE-005"
+              ]
+            },
+            "description": "Rejected before the rule is looked up."
+          },
+          "response": []
+        },
+        {
+          "name": "#6 DELETE as farmer - 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 403', () => pm.response.to.have.status(403));",
+                  "pm.test('Error body has the agreed fields', () => {",
+                  "    pm.expect(pm.response.json()).to.have.all.keys('timestamp', 'status', 'error', 'message', 'path');",
+                  "});",
+                  "pm.test('Message explains the error', () => pm.expect(pm.response.json().message).to.include(\"User FARMER-001 may not change alert rules\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "FARMER-001"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "FARMER"
+              }
+            ],
+            "url": {
+              "raw": "{{alertsUrl}}/api/v1/alert-rules/RULE-005",
+              "host": [
+                "{{alertsUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "alert-rules",
+                "RULE-005"
+              ]
+            },
+            "description": "Refused, so RULE-005 is still there: the next request deletes it."
+          },
+          "response": []
+        },
+        {
           "name": "#6 DELETE RULE-005 - 204",
           "event": [
             {
@@ -1119,7 +1357,16 @@
           ],
           "request": {
             "method": "DELETE",
-            "header": [],
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "AGR-001"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "AGRONOMIST"
+              }
+            ],
             "url": {
               "raw": "{{alertsUrl}}/api/v1/alert-rules/RULE-005",
               "host": [
@@ -1155,7 +1402,16 @@
           ],
           "request": {
             "method": "DELETE",
-            "header": [],
+            "header": [
+              {
+                "key": "X-User-Id",
+                "value": "AGR-001"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "AGRONOMIST"
+              }
+            ],
             "url": {
               "raw": "{{alertsUrl}}/api/v1/alert-rules/RULE-005",
               "host": [
@@ -1194,6 +1450,14 @@
               {
                 "key": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "key": "X-User-Id",
+                "value": "AGR-001"
+              },
+              {
+                "key": "X-User-Role",
+                "value": "AGRONOMIST"
               }
             ],
             "url": {

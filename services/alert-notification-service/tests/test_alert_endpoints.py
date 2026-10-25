@@ -11,6 +11,7 @@ NOW = datetime(2026, 10, 22, 8, 45, tzinfo=timezone.utc)
 ERROR_KEYS = {"timestamp", "status", "error", "message", "path"}
 ALERTS_URL = "/api/v1/farms/FARM-001/alerts"
 OWNER = {"X-User-Id": "FARMER-001"}
+EDITOR = {"X-User-Id": "AGR-001", "X-User-Role": "AGRONOMIST"}
 RULE_URL = "/api/v1/alert-rules/RULE-001"
 NEW_RULE = {
     "cropType": "WHEAT",
@@ -139,7 +140,7 @@ def test_missing_user_header_answers_401(client: TestClient):
 # ---------- #5 PUT /api/v1/alert-rules/{ruleId} ----------
 
 def test_replace_a_rule(client: TestClient):
-    response = client.put(RULE_URL, json=NEW_RULE)
+    response = client.put(RULE_URL, json=NEW_RULE, headers=EDITOR)
 
     assert response.status_code == 200
     assert response.json() == {
@@ -157,16 +158,16 @@ def test_replace_a_rule(client: TestClient):
 
 
 def test_put_is_idempotent(client: TestClient, clock: FakeClock):
-    client.put(RULE_URL, json=NEW_RULE)
+    client.put(RULE_URL, json=NEW_RULE, headers=EDITOR)
     clock.advance(minutes=5)
 
-    again = client.put(RULE_URL, json=NEW_RULE).json()
+    again = client.put(RULE_URL, json=NEW_RULE, headers=EDITOR).json()
 
     assert (again["version"], again["updatedAt"]) == (2, "2026-10-22T08:45:00Z")
 
 
 def test_new_limits_apply_to_the_next_reading_without_redeploying(client: TestClient):
-    client.put(RULE_URL, json={**NEW_RULE, "minValue": 30})
+    client.put(RULE_URL, json={**NEW_RULE, "minValue": 30}, headers=EDITOR)
     event = {
         "eventType": "TelemetryReceived",
         "farmId": "FARM-001",
@@ -192,30 +193,32 @@ def test_new_limits_apply_to_the_next_reading_without_redeploying(client: TestCl
     ],
 )
 def test_invalid_rules_answer_400(client: TestClient, body: dict, message_part: str):
-    assert_error(client.put(RULE_URL, json=body), 400, message_part)
+    assert_error(client.put(RULE_URL, json=body, headers=EDITOR), 400, message_part)
 
 
 def test_replacing_an_unknown_rule_answers_404(client: TestClient):
-    assert_error(client.put("/api/v1/alert-rules/RULE-999", json=NEW_RULE), 404, "Alert rule RULE-999 does not exist")
+    response = client.put("/api/v1/alert-rules/RULE-999", json=NEW_RULE, headers=EDITOR)
+
+    assert_error(response, 404, "Alert rule RULE-999 does not exist")
 
 
 # ---------- #6 DELETE /api/v1/alert-rules/{ruleId} ----------
 
 def test_delete_a_rule(client: TestClient):
-    response = client.delete("/api/v1/alert-rules/RULE-005")
+    response = client.delete("/api/v1/alert-rules/RULE-005", headers=EDITOR)
 
     assert response.status_code == 204
     assert response.content == b""
 
 
 def test_deleting_the_same_rule_twice_answers_404(client: TestClient):
-    client.delete("/api/v1/alert-rules/RULE-005")
+    client.delete("/api/v1/alert-rules/RULE-005", headers=EDITOR)
 
-    assert_error(client.delete("/api/v1/alert-rules/RULE-005"), 404, "Alert rule RULE-005 does not exist")
+    assert_error(client.delete("/api/v1/alert-rules/RULE-005", headers=EDITOR), 404, "Alert rule RULE-005 does not exist")
 
 
 def test_a_deleted_rule_no_longer_raises_alerts_and_cannot_be_replaced(client: TestClient):
-    client.delete(RULE_URL)
+    client.delete(RULE_URL, headers=EDITOR)
     event = {
         "eventType": "TelemetryReceived",
         "farmId": "FARM-001",
@@ -224,5 +227,44 @@ def test_a_deleted_rule_no_longer_raises_alerts_and_cannot_be_replaced(client: T
     }
 
     assert client.app.state.evaluator.on_telemetry_received(event) == []
-    assert_error(client.put(RULE_URL, json=NEW_RULE), 404, "Alert rule RULE-001 does not exist")
+    assert_error(client.put(RULE_URL, json=NEW_RULE, headers=EDITOR), 404, "Alert rule RULE-001 does not exist")
     assert client.get(ALERTS_URL, params={"status": "OPEN"}, headers=OWNER).json()["count"] == 1
+
+
+# ---------- #5 and #6: who may change rules ----------
+
+CHANGE_RULE = {
+    "PUT": lambda client, headers: client.put(RULE_URL, json=NEW_RULE, headers=headers),
+    "DELETE": lambda client, headers: client.delete(RULE_URL, headers=headers),
+}
+
+
+@pytest.mark.parametrize("method", CHANGE_RULE)
+def test_changing_a_rule_without_user_header_answers_401(client: TestClient, method: str):
+    response = CHANGE_RULE[method](client, {"X-User-Role": "AGRONOMIST"})
+
+    assert_error(response, 401, "Missing X-User-Id header")
+    assert response.headers["WWW-Authenticate"].startswith("Bearer")
+
+
+@pytest.mark.parametrize("method", CHANGE_RULE)
+@pytest.mark.parametrize("role", [{"X-User-Role": "FARMER"}, {}], ids=["farmer", "no role"])
+def test_only_agronomists_and_operations_staff_may_change_rules(client: TestClient, method: str, role: dict):
+    response = CHANGE_RULE[method](client, {"X-User-Id": "FARMER-001", **role})
+
+    assert_error(response, 403, "User FARMER-001 may not change alert rules")
+    assert client.app.state.rules.require_rule("RULE-001").version == 1  # rule left as it was
+
+
+def test_operations_staff_may_change_rules(client: TestClient):
+    staff = {"X-User-Id": "OPS-001", "X-User-Role": "OPERATIONS_STAFF"}
+
+    assert client.put(RULE_URL, json=NEW_RULE, headers=staff).status_code == 200
+    assert client.delete(RULE_URL, headers=staff).status_code == 204
+
+
+def test_the_caller_is_checked_before_the_body_and_the_rule(client: TestClient):
+    farmer = {"X-User-Id": "FARMER-001", "X-User-Role": "FARMER"}
+    response = client.put("/api/v1/alert-rules/RULE-999", json={**NEW_RULE, "minValue": 50}, headers=farmer)
+
+    assert_error(response, 403, "may not change alert rules")

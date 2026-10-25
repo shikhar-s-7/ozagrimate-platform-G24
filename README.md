@@ -41,7 +41,7 @@ Code shared by every service lives in `libs/ozagrimate_common/`: the agreed erro
 | Component | Package | Responsibility |
 |---|---|---|
 | Alert API | `api/` | Endpoints #4–6 (FastAPI routers and Pydantic schemas) |
-| Rule Manager | `rule_manager/` | Alert thresholds stored as data per crop, region and metric (ADR-08) |
+| Rule Manager | `rule_manager/` | Alert thresholds stored as data per crop, region and metric (ADR-08); only agronomists and operations staff may change them |
 | Threshold Evaluator | `threshold_evaluator/` | Consumes `TelemetryReceived` and checks each reading against the farm's rules |
 | Alert Manager | `alert_manager/` | Raises, stores and lists alerts; publishes `AlertRaised` to `alerts.raised`, keyed by `farmId` |
 | Notification Dispatcher | `notification_dispatcher/` | Push first, SMS when the push is not confirmed within 2 minutes (ADR-04) |
@@ -68,8 +68,8 @@ Each coded package follows the same layering: router (`api/`) → component serv
 | 2 | GET | `/api/v1/devices/{deviceId}/health` | Telemetry Ingestion :8081 | 200 | 404 unknown device |
 | 3 | PUT | `/api/v1/devices/{deviceId}/configuration` | Telemetry Ingestion :8081 | 200 | 400 interval out of range; 404 unknown device |
 | 4 | GET | `/api/v1/farms/{farmId}/alerts?status=OPEN` | Alert & Notification :8082 | 200 | 400 unknown status; 401 no `X-User-Id`; 403 no `READ_ALERTS` grant; 404 unknown farm |
-| 5 | PUT | `/api/v1/alert-rules/{ruleId}` | Alert & Notification :8082 | 200 | 400 minimum not below maximum; 404 |
-| 6 | DELETE | `/api/v1/alert-rules/{ruleId}` | Alert & Notification :8082 | 204 | 404 unknown rule (so a second delete answers 404) |
+| 5 | PUT | `/api/v1/alert-rules/{ruleId}` | Alert & Notification :8082 | 200 | 400 minimum not below maximum; 401 no `X-User-Id`; 403 not an agronomist or operations staff; 404 |
+| 6 | DELETE | `/api/v1/alert-rules/{ruleId}` | Alert & Notification :8082 | 204 | 401; 403; 404 unknown rule (so a second delete answers 404) |
 | 7 | POST | `/api/v1/farms/{farmId}/access-grants` | Farm & Access :8083 | 201 + `Location` | 400; 401 no `X-User-Id`; 403 not the owner; 404 farm or agronomist; 409 grant already active |
 | 8 | DELETE | `/api/v1/farms/{farmId}/access-grants/{grantId}` | Farm & Access :8083 | 204 | 401; 403; 404 no active grant |
 
@@ -95,7 +95,7 @@ python -m uvicorn telemetry_ingestion.main:app --app-dir services/telemetry-inge
 ## Test it
 
 - **Automated:** `python -m pytest` from the repository root runs every service's tests.
-- **Postman:** import `postman/OzAgriMate.postman_collection.json` and `postman/OzAgriMate.postman_environment.json`, select the **OzAgriMate local** environment, and run the collection with the Collection Runner. The folders hold a success request and the error requests for each endpoint (33 requests, with checks on every response). Data is in memory and seeded at start-up, so restart the services before a full run.
+- **Postman:** import `postman/OzAgriMate.postman_collection.json` and `postman/OzAgriMate.postman_environment.json`, select the **OzAgriMate local** environment, and run the collection with the Collection Runner. The folders hold a success request and the error requests for each endpoint (37 requests, with checks on every response). Data is in memory and seeded at start-up, so restart the services before a full run.
 - **Command line:** with the services running, `npx newman run postman/OzAgriMate.postman_collection.json -e postman/OzAgriMate.postman_environment.json` runs the same collection without the Postman app.
 
 ## Conventions
@@ -107,7 +107,7 @@ python -m uvicorn telemetry_ingestion.main:app --app-dir services/telemetry-inge
   {"timestamp": "2026-10-22T08:45:00Z", "status": 404, "error": "Not Found",
    "message": "Device DEV-9999 is not registered", "path": "/api/v1/devices/DEV-9999/health"}
   ```
-- **Caller identity:** the API Gateway validates each caller's token with the Identity Provider and forwards the user ID in the `X-User-Id` header. Services trust that header because only the gateway can reach them. In Postman, set the header yourself.
+- **Caller identity:** the API Gateway validates each caller's token with the Identity Provider and forwards the user ID in the `X-User-Id` header and the user's role in `X-User-Role`. Only `AGRONOMIST` or `OPERATIONS_STAFF` callers may change alert rules (#5, #6). Services trust these headers because only the gateway can reach them. In Postman, set the headers yourself.
 - **Events:** services publish events to an in-memory outbox that stands in for the Kafka producer. Topics are listed in `event-broker/README.md`.
 
 ### Seed data

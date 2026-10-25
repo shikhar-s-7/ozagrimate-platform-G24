@@ -11,11 +11,19 @@ from ozagrimate_common import ApiError
 from .models import AlertRule
 from .repository import InMemoryRuleRepository
 
+# Rules apply to every farm with that crop in that region, so farmers cannot change them.
+RULE_EDITOR_ROLES = ("AGRONOMIST", "OPERATIONS_STAFF")
+
 
 class RuleManager:
     def __init__(self, repository: InMemoryRuleRepository, clock: Callable[[], datetime]) -> None:
         self._repository = repository
         self._clock = clock
+
+    def require_editor(self, user_id: str, role: str | None) -> None:
+        """Only agronomists and operations staff may replace or delete rules (ADR-05)."""
+        if (role or "").strip() not in RULE_EDITOR_ROLES:
+            raise ApiError(403, f"User {user_id} may not change alert rules: only agronomists and operations staff can")
 
     def require_rule(self, rule_id: str) -> AlertRule:
         rule = self._repository.find(rule_id)
