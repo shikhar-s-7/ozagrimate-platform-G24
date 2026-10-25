@@ -9,7 +9,7 @@ workspace "OzAgriMate Platform" "C4 model of the OzAgriMate digital agriculture 
         // ---------- People ----------
         farmer = person "Farmer" "Checks readings and alerts, acts on irrigation advice and shares farm data."
         agronomist = person "Agronomist" "Advises client farms remotely using the data farmers share."
-        operationsStaff = person "Operations Staff" "Monitor platform health and capacity and support users."
+        operationsStaff = person "Operations Staff" "Monitors platform health and capacity, and supports users."
 
         // ---------- External software systems ----------
         iotNetwork = softwareSystem "IoT Sensor & Gateway Network" "Farm sensors and edge gateways; gateways buffer readings while offline." "External"
@@ -38,8 +38,13 @@ workspace "OzAgriMate Platform" "C4 model of the OzAgriMate digital agriculture 
             }
             telemetryStore = container "Telemetry Store" "Readings kept for 24 months; devices and their configuration." "TimescaleDB" "Database"
             alertService = container "Alert & Notification Service" "Checks readings against alert rules; notifies by push, then SMS." "Python, FastAPI" {
-                // Pranav: add the Alert & Notification components here (Alert API, Rule Manager,
-                // Threshold Evaluator, Alert Manager, Notification Dispatcher, Delivery Tracker).
+                alertApi = component "Alert API" "Endpoints #4-6: list a farm's alerts, replace and delete alert rules." "FastAPI router"
+                ruleManager = component "Rule Manager" "Thresholds stored as data per crop, region and metric; no redeploy to change." "Python"
+                thresholdEvaluator = component "Threshold Evaluator" "Checks each reading in TelemetryReceived against the farm's rules." "Kafka consumer"
+                alertManager = component "Alert Manager" "Raises, stores and lists alerts; one open alert per rule and device." "Python"
+                farmAccessCache = component "Farm Access Cache" "Local copy of farms and grants; checks who may read a farm's alerts." "Kafka consumer"
+                notificationDispatcher = component "Notification Dispatcher" "Sends each alert by push; falls back to SMS after 2 minutes." "Python"
+                deliveryTracker = component "Delivery Tracker" "Records every push and SMS attempt; finds unconfirmed pushes." "Python"
             }
             alertDb = container "Alert DB" "Alert rules, alerts and delivery status." "PostgreSQL" "Database"
             accessService = container "Farm & Access Service" "Farms, owners and revocable agronomist access grants." "Python, FastAPI" {
@@ -58,8 +63,20 @@ workspace "OzAgriMate Platform" "C4 model of the OzAgriMate digital agriculture 
         }
 
         // ---------- System-level relationships (Pranav, System Context view) ----------
-        // Optional: relationships between people, OzAgriMate and the external systems written here,
-        // before the container relationships, replace the labels Structurizr would otherwise imply.
+        // Written before the container relationships, so they replace the labels Structurizr would otherwise imply.
+        farmer -> ozAgriMate "Checks readings, alerts and advice; shares farm data with agronomists"
+        agronomist -> ozAgriMate "Reviews shared farm data and gives advice"
+        operationsStaff -> ozAgriMate "Monitors platform health and devices"
+        iotNetwork -> ozAgriMate "Sends sensor readings, replaying buffered data"
+        ozAgriMate -> iotNetwork "Pushes device configuration"
+        ozAgriMate -> irrigationControl "Sends approved watering schedules"
+        ozAgriMate -> weatherProvider "Fetches forecasts on a schedule"
+        ozAgriMate -> identityProvider "Validates users' access tokens"
+        ozAgriMate -> pushService "Sends push alerts"
+        ozAgriMate -> smsGateway "Sends SMS when a push is not delivered"
+        pushToFarmer = pushService -> farmer "Delivers push alerts to the farmer's phone"
+        ozAgriMate -> regulator "Submits scheduled usage reports"
+        ozAgriMate -> marketplace "Links farmers to supplies and produce listings"
 
         // ---------- Container relationships (container view) ----------
         farmer -> mobileApp "Checks readings, alerts and advice; shares farm data"
@@ -123,24 +140,109 @@ workspace "OzAgriMate Platform" "C4 model of the OzAgriMate digital agriculture 
         grantEventPublisher -> eventBroker "Publishes AccessGranted / AccessRevoked (key: farmId)" "Kafka"
 
         // ---------- Component relationships: Alert & Notification Service (Pranav) ----------
+        apiGateway -> alertApi "Routes alert and alert-rule calls (#4-6) with X-User-Id" "JSON/HTTPS"
+        alertApi -> alertManager "Lists a farm's alerts (#4)"
+        alertApi -> ruleManager "Replaces and deletes rules (#5, #6)"
+        thresholdEvaluator -> eventBroker "Consumes TelemetryReceived" "Kafka"
+        farmAccessCache -> eventBroker "Consumes AccessGranted / AccessRevoked" "Kafka"
+        alertManager -> eventBroker "Publishes AlertRaised (key: farmId); consumes RecommendationIssued" "Kafka"
+        thresholdEvaluator -> ruleManager "Gets the rules for the farm's crop, region and metric"
+        thresholdEvaluator -> farmAccessCache "Looks up the farm's crop and region"
+        thresholdEvaluator -> alertManager "Raises an alert for each breach"
+        thresholdEvaluator -> notificationDispatcher "Dispatches each new alert"
+        alertManager -> farmAccessCache "Checks the caller owns the farm or holds a READ_ALERTS grant"
+        alertManager -> deliveryTracker "Reads each alert's delivery status"
+        notificationDispatcher -> farmAccessCache "Looks up the farm owner's contact"
+        notificationDispatcher -> deliveryTracker "Records attempts; asks for overdue pushes"
+        notificationDispatcher -> pushService "Sends push alerts" "HTTPS"
+        notificationDispatcher -> smsGateway "Sends SMS when a push is not confirmed in 2 minutes" "HTTPS"
+        ruleManager -> alertDb "Reads and writes rules" "SQL"
+        alertManager -> alertDb "Reads and writes alerts" "SQL"
+        deliveryTracker -> alertDb "Reads and writes delivery attempts" "SQL"
+        farmAccessCache -> alertDb "Reads and writes farm and grant copies" "SQL"
 
         // ---------- Deployment (Pranav) ----------
-        // deploymentEnvironment "Production" {
-        //     deploymentNode ... { containerInstance telemetryService }
-        // }
+        production = deploymentEnvironment "Production" {
+            deploymentNode "Farm site" "One per farm; connectivity drops for hours at a time." "Rural property, 4G or satellite link" {
+                deploymentNode "Farm edge gateway" "Collects sensor readings; buffers them on local storage while offline." "Industrial IoT gateway, Linux" {
+                    edgeInstance = softwareSystemInstance iotNetwork
+                }
+            }
+            deploymentNode "Farmer's phone" "Receives push alerts and SMS." "iOS or Android" {
+                phoneAppInstance = containerInstance mobileApp
+            }
+            deploymentNode "Agronomist's or staff computer" "Office or field laptop." "Windows or macOS" {
+                deploymentNode "Web browser" "Runs the single-page dashboard." "Chrome, Edge or Safari" {
+                    dashboardInstance = containerInstance webDashboard
+                }
+            }
+            deploymentNode "Amazon Web Services" "Chosen for an Australian region and managed services." "Public cloud" {
+                deploymentNode "ap-southeast-2 (Sydney)" "All data stays onshore (ADR-05, C2); three availability zones." "AWS region in Australia" {
+                    loadBalancer = infrastructureNode "Application Load Balancer" "Terminates TLS and spreads app and dashboard calls over the gateway pods." "AWS ALB"
+                    deviceLoadBalancer = infrastructureNode "Network Load Balancer" "Terminates TLS and spreads device MQTT (port 8883) and HTTPS connections over the ingestion pods." "AWS NLB"
+                    deploymentNode "Kubernetes cluster" "Runs every service as stateless pods; replaces failed pods." "Amazon EKS, nodes in three zones" {
+                        deploymentNode "api-gateway pods" "One per availability zone." "NGINX, 3 replicas" "" 3 {
+                            gatewayInstance = containerInstance apiGateway
+                        }
+                        deploymentNode "telemetry-ingestion pods" "Pod autoscaler adds replicas as reading volume grows (ADR-02)." "Python 3.12, Uvicorn; autoscaled 3 to 30" "" 3 {
+                            telemetryInstance = containerInstance telemetryService
+                        }
+                        deploymentNode "alert-notification pods" "One Kafka consumer per replica." "Python 3.12, Uvicorn; 3 replicas" "" 3 {
+                            containerInstance alertService
+                        }
+                        deploymentNode "farm-access pods" "Low, steady load." "Python 3.12, Uvicorn; 2 replicas" "" 2 {
+                            containerInstance accessService
+                        }
+                        deploymentNode "irrigation-advisory pods" "CPU-optimised nodes." "Python 3.12, ML model; 2 replicas" "" 2 {
+                            containerInstance advisoryService
+                        }
+                        deploymentNode "reporting-compliance pods" "Runs scheduled report jobs." "Python 3.12, Uvicorn; 2 replicas" "" 2 {
+                            containerInstance reportingService
+                        }
+                    }
+                    deploymentNode "Amazon MSK" "Topics partitioned by farmId, replicated across zones." "Managed Apache Kafka, 3 brokers" {
+                        containerInstance eventBroker
+                    }
+                    deploymentNode "Time-series database" "24-month retention; older data downsampled (ADR-07)." "TimescaleDB, primary and standby" {
+                        containerInstance telemetryStore
+                    }
+                    deploymentNode "Amazon RDS for PostgreSQL" "Database per service (ADR-07); encrypted at rest." "Multi-AZ, one instance per service" {
+                        containerInstance alertDb
+                        containerInstance accessDb
+                        containerInstance advisoryDb
+                    }
+                    deploymentNode "Amazon S3" "Versioned bucket, encrypted at rest." "Object storage, Sydney" {
+                        containerInstance reportStore
+                    }
+                }
+            }
+            deploymentNode "External SaaS" "Reached over HTTPS from the cluster." "Third-party providers" {
+                softwareSystemInstance identityProvider
+                softwareSystemInstance pushService
+                softwareSystemInstance smsGateway
+                softwareSystemInstance weatherProvider
+            }
+
+            edgeInstance -> deviceLoadBalancer "Sends reading batches, replaying buffered data" "MQTT, JSON/HTTPS"
+            phoneAppInstance -> loadBalancer "Makes API calls" "JSON/HTTPS"
+            dashboardInstance -> loadBalancer "Makes API calls" "JSON/HTTPS"
+            loadBalancer -> gatewayInstance "Forwards user API calls" "HTTPS"
+            deviceLoadBalancer -> telemetryInstance "Forwards device traffic" "MQTT, HTTPS"
+        }
     }
 
     views {
-        // Pranav: System Context view
-        // systemContext ozAgriMate "SystemContext" {
-        //     title "System context diagram: OzAgriMate Platform"
-        //     include *
-        //     autoLayout lr
-        // }
+        systemContext ozAgriMate "SystemContext" {
+            title "System context diagram: OzAgriMate Platform"
+            include *
+            exclude "pushService -> ozAgriMate"
+            autoLayout tb
+        }
 
         container ozAgriMate "Containers" {
             title "Container diagram: OzAgriMate Platform"
             include *
+            exclude pushToFarmer
             autoLayout tb
         }
 
@@ -158,19 +260,52 @@ workspace "OzAgriMate Platform" "C4 model of the OzAgriMate digital agriculture 
             autoLayout tb
         }
 
-        // Pranav: Alert & Notification component view
-        // component alertService "AlertNotificationComponents" {
-        //     title "Component diagram: Alert & Notification Service"
-        //     include *
-        //     autoLayout lr
-        // }
+        component alertService "AlertNotificationComponents" {
+            title "Component diagram: Alert & Notification Service"
+            include *
+            autoLayout tb
+        }
 
-        // Pranav: runtime views (each step must match a relationship in the model)
-        // dynamic * "Runtime1-ThresholdAlert" "A soil-moisture reading breaches a threshold; push first, SMS if undelivered." { ... }
-        // dynamic * "Runtime2-GrantAccess" "A farmer grants an agronomist access, who then views that farm's alerts." { ... }
+        dynamic alertService "Runtime1-ThresholdAlert" "A low soil-moisture reading triggers an alert; the farmer is notified by push, with SMS fallback after two minutes." {
+            title "Runtime diagram 1: low soil moisture raises an alert, sent by push with SMS fallback"
+            iotNetwork -> telemetryService "Posts reading batch: DEV-1001 soil moisture 14.2 %"
+            telemetryService -> eventBroker "Publishes TelemetryReceived (key: FARM-001)"
+            thresholdEvaluator -> eventBroker "Consumes TelemetryReceived"
+            thresholdEvaluator -> ruleManager "Gets rules for WHEAT, RIVERINA-NSW, SOIL_MOISTURE"
+            thresholdEvaluator -> alertManager "Raises alert: 14.2 % is below the 20 % minimum"
+            alertManager -> eventBroker "Publishes AlertRaised (key: FARM-001)"
+            thresholdEvaluator -> notificationDispatcher "Dispatches ALERT-003"
+            notificationDispatcher -> pushService "Sends push alert"
+            notificationDispatcher -> deliveryTracker "Records PUSH SENT; later finds the push unconfirmed after 2 minutes"
+            notificationDispatcher -> smsGateway "Sends SMS, retried up to 3 times"
+            smsGateway -> farmer "Texts the alert"
+            notificationDispatcher -> deliveryTracker "Records SMS DELIVERED"
+            autoLayout lr
+        }
 
-        // Pranav: deployment view
-        // deployment * "Production" "Deployment" { include * autoLayout lr }
+        dynamic ozAgriMate "Runtime2-GrantAccess" "A farmer grants an agronomist access; the grant event reaches the alert service, which then serves that farm's alerts." {
+            title "Runtime diagram 2: a farmer grants an agronomist access, then the agronomist views that farm's alerts"
+            farmer -> mobileApp "Shares farm alerts and telemetry with AGR-001"
+            mobileApp -> apiGateway "POST /api/v1/farms/FARM-001/access-grants with bearer token"
+            apiGateway -> identityProvider "Validates the token: FARMER-001, role farmer"
+            apiGateway -> accessService "Routes the call with X-User-Id: FARMER-001"
+            accessService -> accessDb "Checks FARMER-001 owns FARM-001; saves GRANT-002"
+            accessService -> eventBroker "Publishes AccessGranted (key: FARM-001)"
+            alertService -> eventBroker "Consumes AccessGranted"
+            alertService -> alertDb "Stores its copy of GRANT-002 (Farm Access Cache)"
+            agronomist -> webDashboard "Opens FARM-001's alerts"
+            webDashboard -> apiGateway "GET /api/v1/farms/FARM-001/alerts?status=OPEN with bearer token"
+            apiGateway -> identityProvider "Validates the token: AGR-001, role agronomist"
+            apiGateway -> alertService "Routes the call with X-User-Id: AGR-001"
+            alertService -> alertDb "Checks AGR-001 holds READ_ALERTS on FARM-001; reads OPEN alerts"
+            autoLayout lr
+        }
+
+        deployment ozAgriMate production "Deployment" {
+            title "Deployment diagram: OzAgriMate Platform (production)"
+            include *
+            autoLayout lr
+        }
 
         styles {
             element "Person" {

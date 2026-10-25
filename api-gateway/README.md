@@ -6,7 +6,7 @@ The single entry point for the mobile app and the web dashboard. The brief does 
 
 - terminates TLS for every client call;
 - validates each caller's access token with the Identity Provider (OIDC) and checks the caller's role (ADR-05, ASR17);
-- removes any `X-User-Id` header a client sent, then forwards the validated user ID in `X-User-Id` (services rely on this header);
+- removes any `X-User-Id` or `X-User-Role` header a client sent, then forwards the validated user ID in `X-User-Id` and the caller's role in `X-User-Role` (services rely on these headers);
 - rate-limits each client;
 - routes each `/api/v1` path to its service.
 

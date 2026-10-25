@@ -1,0 +1,48 @@
+@startuml runtime-2-grant-access
+!include <C4/C4_Sequence>
+' Generated from the same model as docs/architecture/workspace.dsl; edit both together.
+skinparam dpi 150
+skinparam wrapWidth 220
+skinparam defaultFontName Arial
+SHOW_PERSON_OUTLINE()
+SHOW_ELEMENT_DESCRIPTIONS()
+SHOW_INDEX()
+skinparam sequenceMessageAlign center
+title Runtime diagram 2: a farmer grants an agronomist access, then the agronomist views that farm's alerts
+
+Person(farmer, "Farmer", "Checks readings and alerts, acts on irrigation advice and shares farm data.")
+Person(agronomist, "Agronomist", "Advises client farms remotely using the data farmers share.")
+Container(mobileApp, "Farmer Mobile App", "React Native", "Shows readings, alerts and advice; works on patchy rural coverage.")
+Container(webDashboard, "Web Dashboard", "React", "Multi-farm views for agronomists; platform health for operations staff.")
+Container(apiGateway, "API Gateway", "NGINX", "Validates tokens, sets X-User-Id, rate-limits and routes /api/v1 calls.")
+System_Ext(identityProvider, "Identity Provider", "Signs users in and issues access tokens (OIDC).")
+Container(accessService, "Farm & Access Service", "Python, FastAPI", "Farms, owners and revocable agronomist access grants.")
+ContainerQueue(eventBroker, "Event Broker", "Apache Kafka", "Carries telemetry, alert, grant and recommendation events between services.")
+Container(alertService, "Alert & Notification Service", "Python, FastAPI", "Checks readings against alert rules; notifies by push, then SMS.")
+ContainerDb(alertDb, "Alert DB", "PostgreSQL", "Alert rules, alerts and delivery status.")
+
+group Farmer shares FARM-001 with AGR-001 (endpoint #7)
+  Rel(farmer, mobileApp, "Shares farm alerts and telemetry with AGR-001")
+  Rel(mobileApp, apiGateway, "POST /api/v1/farms/FARM-001/access-grants with bearer token", "JSON/HTTPS")
+  Rel(apiGateway, identityProvider, "Validates the token: FARMER-001, role farmer", "OIDC/HTTPS")
+  Rel(apiGateway, accessService, "Routes the call with X-User-Id: FARMER-001", "JSON/HTTPS")
+  Rel(accessService, accessService, "Checks FARMER-001 owns FARM-001; saves GRANT-002 in Farm & Access DB")
+  Rel(accessService, eventBroker, "Publishes AccessGranted (key: FARM-001)", "Kafka")
+  Rel(accessService, apiGateway, "201 Created with GRANT-002", "JSON/HTTPS")
+  Rel(apiGateway, mobileApp, "201 Created", "JSON/HTTPS")
+end
+group Grant reaches the Alert & Notification Service
+  Rel(eventBroker, alertService, "Delivers AccessGranted", "Kafka")
+  Rel(alertService, alertDb, "Stores its copy of GRANT-002 (Farm Access Cache)", "SQL")
+end
+group Agronomist views FARM-001's open alerts (endpoint #4)
+  Rel(agronomist, webDashboard, "Opens FARM-001's alerts")
+  Rel(webDashboard, apiGateway, "GET /api/v1/farms/FARM-001/alerts?status=OPEN with bearer token", "JSON/HTTPS")
+  Rel(apiGateway, identityProvider, "Validates the token: AGR-001, role agronomist", "OIDC/HTTPS")
+  Rel(apiGateway, alertService, "Routes the call with X-User-Id: AGR-001", "JSON/HTTPS")
+  Rel(alertService, alertDb, "Checks AGR-001 holds READ_ALERTS on FARM-001; reads OPEN alerts", "SQL")
+  Rel(alertService, apiGateway, "200 OK with the farm's open alerts", "JSON/HTTPS")
+  Rel(apiGateway, webDashboard, "200 OK", "JSON/HTTPS")
+  Rel(webDashboard, agronomist, "Shows ALERT-003 and its delivery status")
+end
+@enduml

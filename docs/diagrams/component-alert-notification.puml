@@ -1,0 +1,55 @@
+@startuml component-alert-notification
+!include <C4/C4_Component>
+' Generated from the same model as docs/architecture/workspace.dsl; edit both together.
+skinparam dpi 150
+skinparam wrapWidth 220
+skinparam defaultFontName Arial
+SHOW_PERSON_OUTLINE()
+LAYOUT_TOP_DOWN()
+skinparam nodesep 50
+skinparam ranksep 70
+title Component diagram: Alert & Notification Service
+
+Container(apiGateway, "API Gateway", "NGINX", "Validates tokens, sets X-User-Id, rate-limits and routes /api/v1 calls.")
+ContainerQueue(eventBroker, "Event Broker", "Apache Kafka", "Carries telemetry, alert, grant and recommendation events between services.")
+ContainerDb(alertDb, "Alert DB", "PostgreSQL", "Alert rules, alerts and delivery status.")
+
+Container_Boundary(alertService, "Alert & Notification Service [Python, FastAPI]") {
+  Component(alertApi, "Alert API", "FastAPI router", "Endpoints #4-6: list a farm's alerts, replace and delete alert rules.")
+  Component(ruleManager, "Rule Manager", "Python", "Thresholds stored as data per crop, region and metric; no redeploy to change.")
+  Component(thresholdEvaluator, "Threshold Evaluator", "Kafka consumer", "Checks each reading in TelemetryReceived against the farm's rules.")
+  Component(alertManager, "Alert Manager", "Python", "Raises, stores and lists alerts; one open alert per rule and device.")
+  Component(farmAccessCache, "Farm Access Cache", "Kafka consumer", "Local copy of farms and grants; checks who may read a farm's alerts.")
+  Component(notificationDispatcher, "Notification Dispatcher", "Python", "Sends each alert by push; falls back to SMS after 2 minutes.")
+  Component(deliveryTracker, "Delivery Tracker", "Python", "Records every push and SMS attempt; finds unconfirmed pushes.")
+}
+
+System_Ext(pushService, "Push Notification Service", "Delivers push notifications to phones (APNs, FCM).")
+System_Ext(smsGateway, "SMS Gateway", "Sends SMS messages to farmers' phones.")
+
+Rel(apiGateway, alertApi, "Routes alert and alert-rule calls (#4-6) with X-User-Id", "JSON/HTTPS")
+Rel(alertApi, alertManager, "Lists a farm's alerts (#4)")
+Rel(alertApi, ruleManager, "Replaces and deletes rules (#5, #6)")
+Rel_U(thresholdEvaluator, eventBroker, "Consumes TelemetryReceived", "Kafka")
+Rel_U(farmAccessCache, eventBroker, "Consumes AccessGranted / AccessRevoked", "Kafka")
+Rel_U(alertManager, eventBroker, "Publishes AlertRaised (key: farmId); consumes RecommendationIssued", "Kafka")
+Rel(thresholdEvaluator, ruleManager, "Gets the rules for the farm's crop, region and metric")
+Rel(thresholdEvaluator, farmAccessCache, "Looks up the farm's crop and region")
+Rel(thresholdEvaluator, alertManager, "Raises an alert for each breach")
+Rel(thresholdEvaluator, notificationDispatcher, "Dispatches each new alert")
+Rel(alertManager, farmAccessCache, "Checks the caller owns the farm or holds a READ_ALERTS grant")
+Rel(alertManager, deliveryTracker, "Reads each alert's delivery status")
+Rel(notificationDispatcher, farmAccessCache, "Looks up the farm owner's contact")
+Rel(notificationDispatcher, deliveryTracker, "Records attempts; asks for overdue pushes")
+Rel_D(notificationDispatcher, pushService, "Sends push alerts", "HTTPS")
+Rel_D(notificationDispatcher, smsGateway, "Sends SMS when a push is not confirmed in 2 minutes", "HTTPS")
+Rel(ruleManager, alertDb, "Reads and writes rules", "SQL")
+Rel(alertManager, alertDb, "Reads and writes alerts", "SQL")
+Rel(deliveryTracker, alertDb, "Reads and writes delivery attempts", "SQL")
+Rel(farmAccessCache, alertDb, "Reads and writes farm and grant copies", "SQL")
+
+Lay_R(eventBroker, apiGateway)
+Lay_R(thresholdEvaluator, alertApi)
+Lay_R(pushService, smsGateway)
+SHOW_LEGEND(false)
+@enduml

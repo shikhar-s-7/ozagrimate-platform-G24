@@ -6,6 +6,9 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PY="${PYTHON:-python3}"
+# The shared library is also installed by requirements.txt; this keeps the services
+# starting even if that editable install is not picked up.
+export PYTHONPATH="$ROOT/libs/ozagrimate_common${PYTHONPATH:+:$PYTHONPATH}"
 trap 'kill 0' EXIT
 
 "$PY" -m uvicorn telemetry_ingestion.main:app --app-dir "$ROOT/services/telemetry-ingestion-service" --port 8081 &
