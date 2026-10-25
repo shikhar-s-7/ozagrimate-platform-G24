@@ -3,9 +3,9 @@
 | Path | What it is |
 |---|---|
 | `architecture/workspace.dsl` | The C4 model in Structurizr DSL: every person, software system, container and component, and every relationship. One model, many views. |
-| `diagrams/*.puml` | C4-PlantUML source for each diagram in the report except the container diagram, written with exactly the element names, descriptions and relationship labels in `workspace.dsl`. |
-| `diagrams/container.mmd` | Mermaid source for the container diagram. Same elements, technologies and relationships as `workspace.dsl`, with shorter descriptions and labels so it stays readable on an A4 page. |
-| `diagrams/*.png`, `diagrams/*.svg` | The rendered diagrams. Use the SVG in the report where possible, because it stays sharp at any zoom; for the container diagram use the PNG (see Rendering). |
+| `diagrams/*.puml` | C4-PlantUML source for the PlantUML diagrams, written with exactly the element names, descriptions and relationship labels in `workspace.dsl`. |
+| `diagrams/*.mmd` | Mermaid source for the Mermaid diagrams (see the table below). Same elements, technologies and relationships as `workspace.dsl`, with shorter descriptions and labels so they stay readable on an A4 page. |
+| `diagrams/*.png`, `diagrams/*.svg` | The rendered diagrams. Use the SVG in the report where possible, because it stays sharp at any zoom; for the Mermaid diagrams use the PNG (see Rendering). |
 
 ## Diagrams
 
@@ -13,7 +13,7 @@
 |---|---|---|
 | System context | `diagrams/system-context.puml` | Pranav |
 | Container | `diagrams/container.mmd` (Mermaid) | Shikhar |
-| Component: Telemetry Ingestion Service | `diagrams/component-telemetry-ingestion.puml` | Shikhar |
+| Component: Telemetry Ingestion Service | `diagrams/component-telemetry-ingestion.mmd` (Mermaid) | Shikhar |
 | Component: Alert & Notification Service | `diagrams/component-alert-notification.puml` | Pranav |
 | Component: Farm & Access Service | `diagrams/component-farm-access.puml` | Shikhar |
 | Runtime 1: threshold alert, push then SMS | `diagrams/runtime-1-threshold-alert.puml` | Pranav |
@@ -45,6 +45,6 @@ SHOW_LEGEND(false)
 
 `SHOW_LEGEND(false)` keeps the element type, such as «container» or «person», visible inside every box.
 
-The container diagram is Mermaid and uses Mermaid's ELK layout. Paste `container.mmd` into https://mermaid.live, or run `npx -p @mermaid-js/mermaid-cli mmdc -i docs/diagrams/container.mmd -o docs/diagrams/container.png -s 3`. Use its PNG in Word: Mermaid's SVG draws the text as HTML, which Word does not display.
+The `.mmd` diagrams are Mermaid and use Mermaid's ELK layout. Paste one into https://mermaid.live, or render it with mermaid-cli, for example `npx -p @mermaid-js/mermaid-cli mmdc -i docs/diagrams/container.mmd -o docs/diagrams/container.png -s 3`. Use their PNGs in Word: Mermaid's SVG draws the text as HTML, which Word does not display.
 
 `workspace.dsl` opens in Structurizr, for example by pasting it into the DSL editor at https://structurizr.com/dsl. It defines all eight views: system context, containers, the three component views, the two dynamic (runtime) views and the production deployment view. `structurizr-cli validate -workspace docs/architecture/workspace.dsl` checks it.

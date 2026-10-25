@@ -1,0 +1,67 @@
+---
+title: "Component diagram: Telemetry Ingestion Service"
+config:
+  layout: elk
+  elk:
+    cycleBreakingStrategy: MODEL_ORDER
+    considerModelOrder: NODES_AND_EDGES
+    forceNodeModelOrder: true
+  flowchart:
+    wrappingWidth: 220
+    nodeSpacing: 30
+    rankSpacing: 45
+---
+flowchart TB
+    %% Nodes are listed top to bottom; MODEL_ORDER and forceNodeModelOrder keep that order.
+    %% Light blue boxes are the service's components. There is no container boundary: wrapping them
+    %% in a subgraph makes Mermaid push the IoT network and API Gateway to the bottom.
+    %% The numbers 1-6 are the order in which the Ingestion Pipeline calls the components.
+
+    %% ---------- Above the service ----------
+    iotNetwork["<b>IoT Sensor & Gateway Network</b><br/>[External system]<br/>Farm sensors, gateways."]
+    apiGateway["<b>API Gateway</b><br/>[Container: NGINX]<br/>Auth and routing."]
+
+    %% ---------- Telemetry Ingestion Service components ----------
+    telemetryApi["<b>Telemetry API</b><br/>[Component: FastAPI router]<br/>Endpoints #1-3."]
+    ingestionPipeline["<b>Ingestion Pipeline</b><br/>[Component: Python]<br/>Runs each batch; holds no state."]
+    protocolAdapters["<b>Protocol Adapters</b><br/>[Component: Python]<br/>MQTT or HTTPS to one batch format."]
+    deviceRegistry["<b>Device Registry</b><br/>[Component: Python]<br/>Devices, health, configuration."]
+    duplicateFilter["<b>Duplicate Filter</b><br/>[Component: Python]<br/>Drops replayed readings."]
+    validator["<b>Validator</b><br/>[Component: Python]<br/>Checks values, converts units."]
+    readingStore["<b>Reading Store</b><br/>[Component: Python repository]<br/>Saves readings."]
+    eventPublisher["<b>Event Publisher</b><br/>[Component: Kafka producer]<br/>TelemetryReceived by farmId."]
+
+    %% ---------- Below the service ----------
+    telemetryStore[("<b>Telemetry Store</b><br/>[Container: TimescaleDB]<br/>Readings, 24 months.")]
+    eventBroker[("<b>Event Broker</b><br/>[Container: Apache Kafka]<br/>Service events.")]
+
+    %% ---------- Relationships ----------
+    iotNetwork -->|"Posts batches (#1)<br/>[JSON/HTTPS]"| telemetryApi
+    iotNetwork -->|"Publishes readings<br/>[MQTT]"| ingestionPipeline
+    apiGateway -->|"Device calls (#2, #3)<br/>[JSON/HTTPS]"| telemetryApi
+    telemetryApi -->|"Hands over batch"| ingestionPipeline
+    telemetryApi -->|"Health, configuration"| deviceRegistry
+    ingestionPipeline -->|"1. Converts payload"| protocolAdapters
+    ingestionPipeline -->|"2. Checks devices"| deviceRegistry
+    ingestionPipeline -->|"3. Drops replays"| duplicateFilter
+    ingestionPipeline -->|"4. Validates"| validator
+    ingestionPipeline -->|"5. Saves"| readingStore
+    ingestionPipeline -->|"6. Publishes"| eventPublisher
+    deviceRegistry -->|"Pushes configuration<br/>[MQTT]"| iotNetwork
+    deviceRegistry -->|"Reads/writes devices<br/>[SQL]"| telemetryStore
+    duplicateFilter -->|"Checks key<br/>[SQL]"| telemetryStore
+    readingStore -->|"Writes readings<br/>[SQL]"| telemetryStore
+    eventPublisher -->|"TelemetryReceived (key farmId)<br/>[Kafka]"| eventBroker
+
+    %% ---------- Layout only (invisible links): steps 4-6 sit below steps 1-3 ----------
+    protocolAdapters ~~~ validator
+    deviceRegistry ~~~ readingStore
+    duplicateFilter ~~~ eventPublisher
+
+    %% ---------- C4 colours ----------
+    classDef component fill:#85bbf0,stroke:#5d82a8,color:#000000
+    classDef container fill:#438dd5,stroke:#3c7fc0,color:#ffffff
+    classDef external fill:#999999,stroke:#8a8a8a,color:#ffffff
+    class telemetryApi,ingestionPipeline,protocolAdapters,deviceRegistry,duplicateFilter,validator,readingStore,eventPublisher component
+    class apiGateway,telemetryStore,eventBroker container
+    class iotNetwork external
