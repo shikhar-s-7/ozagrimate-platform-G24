@@ -1,0 +1,95 @@
+---
+title: "Container diagram: OzAgriMate Platform"
+config:
+  layout: elk
+  elk:
+    cycleBreakingStrategy: MODEL_ORDER
+    considerModelOrder: NODES_AND_EDGES
+  flowchart:
+    wrappingWidth: 220
+    nodeSpacing: 30
+    rankSpacing: 45
+---
+flowchart TB
+    %% Nodes are listed top to bottom; MODEL_ORDER keeps that order. Blue boxes are the platform's containers.
+    %% No platform boundary: wrapping the blue boxes in a subgraph makes Mermaid push the people and
+    %% external systems to the bottom.
+
+    %% ---------- Above the platform ----------
+    iotNetwork["<b>IoT Sensor & Gateway Network</b><br/>[External system]<br/>Farm sensors, gateways."]
+    farmer(["<b>Farmer</b><br/>[Person]<br/>Acts on alerts and advice."])
+    agronomist(["<b>Agronomist</b><br/>[Person]<br/>Advises client farms."])
+    operationsStaff(["<b>Operations Staff</b><br/>[Person]<br/>Runs the platform."])
+
+    %% ---------- OzAgriMate Platform containers ----------
+    webDashboard["<b>Web Dashboard</b><br/>[Container: React]<br/>Multi-farm views."]
+    mobileApp["<b>Farmer Mobile App</b><br/>[Container: React Native]<br/>Readings, alerts, advice."]
+    apiGateway["<b>API Gateway</b><br/>[Container: NGINX]<br/>Auth and routing."]
+    telemetryService["<b>Telemetry Ingestion Service</b><br/>[Container: Python, FastAPI]<br/>Ingests readings."]
+    accessService["<b>Farm & Access Service</b><br/>[Container: Python, FastAPI]<br/>Farms and grants."]
+    alertService["<b>Alert & Notification Service</b><br/>[Container: Python, FastAPI]<br/>Alerts: push, then SMS."]
+    telemetryStore[("<b>Telemetry Store</b><br/>[Container: TimescaleDB]<br/>Readings, 24 months.")]
+    accessDb[("<b>Farm & Access DB</b><br/>[Container: PostgreSQL]<br/>Farms and grants.")]
+    alertDb[("<b>Alert DB</b><br/>[Container: PostgreSQL]<br/>Rules and alerts.")]
+    eventBroker[("<b>Event Broker</b><br/>[Container: Apache Kafka]<br/>Service events.")]
+    reportingService["<b>Reporting & Compliance Service</b><br/>[Container: Python, FastAPI]<br/>Usage reports."]
+    advisoryService["<b>Irrigation Advisory Service</b><br/>[Container: Python, FastAPI, ML model]<br/>AI irrigation advice."]
+    reportStore[("<b>Report Store</b><br/>[Container: S3-compatible object storage]<br/>Reports, exports.")]
+    advisoryDb[("<b>Advisory DB</b><br/>[Container: PostgreSQL]<br/>Recommendations.")]
+
+    %% ---------- Beside and below the platform ----------
+    marketplace["<b>Agricultural Marketplace</b><br/>[External system]<br/>Supplies, produce."]
+    pushService["<b>Push Notification Service</b><br/>[External system]<br/>APNs, FCM."]
+    identityProvider["<b>Identity Provider</b><br/>[External system]<br/>OIDC sign-in."]
+    smsGateway["<b>SMS Gateway</b><br/>[External system]<br/>Texts farmers."]
+    regulator["<b>Government & Regulatory Reporting System</b><br/>[External system]<br/>Gets usage reports."]
+    irrigationControl["<b>Irrigation Control System</b><br/>[External system]<br/>On-farm irrigation."]
+    weatherProvider["<b>Weather Data Provider</b><br/>[External system]<br/>Forecasts."]
+
+    %% ---------- Relationships ----------
+    agronomist -->|"Uses"| webDashboard
+    operationsStaff -->|"Uses"| webDashboard
+    farmer -->|"Uses"| mobileApp
+    mobileApp -->|"Links to listings<br/>[HTTPS]"| marketplace
+    webDashboard -->|"API calls<br/>[JSON/HTTPS]"| apiGateway
+    mobileApp -->|"API calls<br/>[JSON/HTTPS]"| apiGateway
+    pushService -->|"Delivers push<br/>[APNs/FCM]"| mobileApp
+    apiGateway -->|"Validates tokens<br/>[OIDC/HTTPS]"| identityProvider
+    apiGateway -->|"Device calls<br/>[JSON/HTTPS]"| telemetryService
+    apiGateway -->|"Grant calls<br/>[JSON/HTTPS]"| accessService
+    apiGateway -->|"Alert calls<br/>[JSON/HTTPS]"| alertService
+    apiGateway -->|"Report calls<br/>[JSON/HTTPS]"| reportingService
+    apiGateway -->|"Advice calls<br/>[JSON/HTTPS]"| advisoryService
+    iotNetwork -->|"Sends readings<br/>[MQTT, JSON/HTTPS]"| telemetryService
+    telemetryService -->|"Pushes config<br/>[MQTT]"| iotNetwork
+    telemetryService -->|"Reads/writes<br/>[SQL]"| telemetryStore
+    telemetryService -->|"Publishes TelemetryReceived<br/>[Kafka]"| eventBroker
+    accessService -->|"Reads/writes<br/>[SQL]"| accessDb
+    accessService -->|"Publishes AccessGranted/Revoked<br/>[Kafka]"| eventBroker
+    alertService -->|"Reads/writes<br/>[SQL]"| alertDb
+    alertService -->|"Consumes events; publishes AlertRaised<br/>[Kafka]"| eventBroker
+    alertService -->|"Sends push<br/>[HTTPS]"| pushService
+    alertService -->|"Sends SMS fallback<br/>[HTTPS]"| smsGateway
+    smsGateway -->|"Texts alerts<br/>[SMS]"| farmer
+    reportingService -->|"Consumes events<br/>[Kafka]"| eventBroker
+    reportingService -->|"Stores reports<br/>[S3 API]"| reportStore
+    reportingService -->|"Submits reports<br/>[HTTPS]"| regulator
+    advisoryService -->|"Consumes events; publishes RecommendationIssued<br/>[Kafka]"| eventBroker
+    advisoryService -->|"Reads/writes<br/>[SQL]"| advisoryDb
+    advisoryService -->|"Fetches forecasts<br/>[JSON/HTTPS]"| weatherProvider
+    advisoryService -->|"Sends schedules<br/>[HTTPS]"| irrigationControl
+
+    %% ---------- Layout only (invisible links) ----------
+    eventBroker ~~~ reportingService
+    eventBroker ~~~ advisoryService
+    reportStore ~~~ regulator
+    advisoryDb ~~~ weatherProvider
+    advisoryDb ~~~ irrigationControl
+
+    %% ---------- C4 colours ----------
+    classDef person fill:#08427b,stroke:#073b6f,color:#ffffff
+    classDef container fill:#438dd5,stroke:#3c7fc0,color:#ffffff
+    classDef external fill:#999999,stroke:#8a8a8a,color:#ffffff
+    class agronomist,operationsStaff,farmer person
+    class webDashboard,mobileApp,apiGateway,telemetryService,accessService,alertService,telemetryStore,accessDb,alertDb,eventBroker,reportingService,advisoryService,reportStore,advisoryDb container
+    class iotNetwork,marketplace,pushService,identityProvider,smsGateway,regulator,irrigationControl,weatherProvider external
