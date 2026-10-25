@@ -15,7 +15,7 @@
 | Container | `diagrams/container.mmd` (Mermaid) | Shikhar |
 | Component: Telemetry Ingestion Service | `diagrams/component-telemetry-ingestion.mmd` (Mermaid) | Shikhar |
 | Component: Alert & Notification Service | `diagrams/component-alert-notification.puml` | Pranav |
-| Component: Farm & Access Service | `diagrams/component-farm-access.puml` | Shikhar |
+| Component: Farm & Access Service | `diagrams/component-farm-access.mmd` (Mermaid) | Shikhar |
 | Runtime 1: threshold alert, push then SMS | `diagrams/runtime-1-threshold-alert.puml` | Pranav |
 | Runtime 2: farmer grants access, agronomist views alerts | `diagrams/runtime-2-grant-access.puml` | Pranav |
 | Deployment | `diagrams/deployment.puml` | Pranav |

@@ -1,0 +1,49 @@
+---
+title: "Component diagram: Farm & Access Service"
+config:
+  layout: elk
+  elk:
+    cycleBreakingStrategy: MODEL_ORDER
+    considerModelOrder: NODES_AND_EDGES
+    forceNodeModelOrder: true
+  flowchart:
+    wrappingWidth: 220
+    nodeSpacing: 30
+    rankSpacing: 45
+---
+flowchart TB
+    %% Nodes are listed top to bottom; MODEL_ORDER and forceNodeModelOrder keep that order.
+    %% Light blue boxes are the service's components; darker blue boxes are other containers. There is no
+    %% container boundary: wrapping the components in a subgraph makes Mermaid push the API Gateway to the bottom.
+
+    %% ---------- Above the service ----------
+    apiGateway["<b>API Gateway</b><br/>[Container: NGINX]<br/>Auth and routing."]
+
+    %% ---------- Farm & Access Service components ----------
+    accessApi["<b>Access API</b><br/>[Component: FastAPI router]<br/>Endpoints #7-8."]
+    grantManager["<b>Grant Manager</b><br/>[Component: Python]<br/>One active grant per agronomist per farm."]
+    authorisationChecker["<b>Authorisation Checker</b><br/>[Component: Python]<br/>Only a farm's owner may change its grants."]
+    grantEventPublisher["<b>Grant Event Publisher</b><br/>[Component: Kafka producer]<br/>AccessGranted, AccessRevoked by farmId."]
+    farmRegistry["<b>Farm Registry</b><br/>[Component: Python]<br/>Farms, owners, agronomists."]
+
+    %% ---------- Below the service ----------
+    alertService["<b>Alert & Notification Service</b><br/>[Container: Python, FastAPI]<br/>Alerts: push, then SMS."]
+    eventBroker[("<b>Event Broker</b><br/>[Container: Apache Kafka]<br/>Service events.")]
+    accessDb[("<b>Farm & Access DB</b><br/>[Container: PostgreSQL]<br/>Farms and grants.")]
+
+    %% ---------- Relationships ----------
+    apiGateway -->|"Grant calls (#7, #8) with X-User-Id<br/>[JSON/HTTPS]"| accessApi
+    accessApi -->|"Creates, revokes grants"| grantManager
+    grantManager -->|"Checks the caller owns the farm"| authorisationChecker
+    grantManager -->|"Announces each change"| grantEventPublisher
+    grantManager -->|"Finds farm, agronomist"| farmRegistry
+    grantManager -->|"Reads/writes grants<br/>[SQL]"| accessDb
+    farmRegistry -->|"Reads farms, agronomists<br/>[SQL]"| accessDb
+    grantEventPublisher -->|"AccessGranted/Revoked (key farmId)<br/>[Kafka]"| eventBroker
+    alertService -->|"Consumes grant events<br/>[Kafka]"| eventBroker
+
+    %% ---------- C4 colours ----------
+    classDef component fill:#85bbf0,stroke:#5d82a8,color:#000000
+    classDef container fill:#438dd5,stroke:#3c7fc0,color:#ffffff
+    class accessApi,grantManager,authorisationChecker,grantEventPublisher,farmRegistry component
+    class apiGateway,alertService,eventBroker,accessDb container
