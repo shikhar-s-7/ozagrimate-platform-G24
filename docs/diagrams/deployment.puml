@@ -28,7 +28,8 @@ Deployment_Node(computer, "Agronomist's or staff computer", "Windows or macOS", 
 
 Deployment_Node(aws, "Amazon Web Services", "Public cloud", "Chosen for an Australian region and managed services.") {
   Deployment_Node(sydney, "ap-southeast-2 (Sydney)", "AWS region in Australia", "All data stays onshore (ADR-05, C2); three availability zones.") {
-    Deployment_Node(loadBalancer, "Application Load Balancer", "AWS ALB", "Terminates TLS and spreads traffic over gateway and ingestion pods.")
+    Deployment_Node(loadBalancer, "Application Load Balancer", "AWS ALB", "Terminates TLS and spreads app and dashboard calls over the gateway pods.")
+    Deployment_Node(deviceLoadBalancer, "Network Load Balancer", "AWS NLB", "Terminates TLS and spreads device MQTT (port 8883) and HTTPS connections over the ingestion pods.")
     Deployment_Node(eks, "Kubernetes cluster", "Amazon EKS, nodes in three zones", "Runs every service as stateless pods; replaces failed pods.") {
       Deployment_Node(gatewayPods, "api-gateway pods", "NGINX, 3 replicas", "One per availability zone.") {
         Container(apiGateway, "API Gateway", "NGINX", "Validates tokens, sets X-User-Id, rate-limits and routes /api/v1 calls.")
@@ -73,11 +74,11 @@ Deployment_Node(saas, "External SaaS", "Third-party providers", "Reached over HT
   System_Ext(weatherProvider, "Weather Data Provider", "Supplies forecasts and climate data.")
 }
 
-Rel(iotNetwork, loadBalancer, "Sends reading batches, replaying buffered data", "MQTT, JSON/HTTPS")
+Rel(iotNetwork, deviceLoadBalancer, "Sends reading batches, replaying buffered data", "MQTT, JSON/HTTPS")
 Rel(mobileApp, loadBalancer, "Makes API calls", "JSON/HTTPS")
 Rel(webDashboard, loadBalancer, "Makes API calls", "JSON/HTTPS")
 Rel(loadBalancer, apiGateway, "Forwards user API calls", "HTTPS")
-Rel(loadBalancer, telemetryService, "Forwards device traffic", "MQTT, HTTPS")
+Rel(deviceLoadBalancer, telemetryService, "Forwards device traffic", "MQTT, HTTPS")
 Rel(apiGateway, identityProvider, "Validates access tokens", "OIDC/HTTPS")
 Rel(apiGateway, alertService, "Routes alert and alert-rule calls", "JSON/HTTPS")
 Rel(apiGateway, accessService, "Routes access-grant calls", "JSON/HTTPS")
@@ -98,6 +99,9 @@ Rel(alertService, pushService, "Sends push alerts", "HTTPS")
 Rel(alertService, smsGateway, "Sends SMS when push is not delivered", "HTTPS")
 Rel(advisoryService, weatherProvider, "Fetches forecasts on a schedule", "JSON/HTTPS")
 Rel(pushService, mobileApp, "Delivers push notifications", "APNs/FCM")
+
+' Layout only: puts the two load balancers in one column, the ALB above the NLB.
+Lay_R(deviceLoadBalancer, loadBalancer)
 
 SHOW_LEGEND(false)
 @enduml

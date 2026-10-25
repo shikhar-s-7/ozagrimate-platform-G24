@@ -178,7 +178,8 @@ workspace "OzAgriMate Platform" "C4 model of the OzAgriMate digital agriculture 
             }
             deploymentNode "Amazon Web Services" "Chosen for an Australian region and managed services." "Public cloud" {
                 deploymentNode "ap-southeast-2 (Sydney)" "All data stays onshore (ADR-05, C2); three availability zones." "AWS region in Australia" {
-                    loadBalancer = infrastructureNode "Application Load Balancer" "Terminates TLS and spreads traffic over gateway and ingestion pods." "AWS ALB"
+                    loadBalancer = infrastructureNode "Application Load Balancer" "Terminates TLS and spreads app and dashboard calls over the gateway pods." "AWS ALB"
+                    deviceLoadBalancer = infrastructureNode "Network Load Balancer" "Terminates TLS and spreads device MQTT (port 8883) and HTTPS connections over the ingestion pods." "AWS NLB"
                     deploymentNode "Kubernetes cluster" "Runs every service as stateless pods; replaces failed pods." "Amazon EKS, nodes in three zones" {
                         deploymentNode "api-gateway pods" "One per availability zone." "NGINX, 3 replicas" "" 3 {
                             gatewayInstance = containerInstance apiGateway
@@ -222,11 +223,11 @@ workspace "OzAgriMate Platform" "C4 model of the OzAgriMate digital agriculture 
                 softwareSystemInstance weatherProvider
             }
 
-            edgeInstance -> loadBalancer "Sends reading batches, replaying buffered data" "MQTT, JSON/HTTPS"
+            edgeInstance -> deviceLoadBalancer "Sends reading batches, replaying buffered data" "MQTT, JSON/HTTPS"
             phoneAppInstance -> loadBalancer "Makes API calls" "JSON/HTTPS"
             dashboardInstance -> loadBalancer "Makes API calls" "JSON/HTTPS"
             loadBalancer -> gatewayInstance "Forwards user API calls" "HTTPS"
-            loadBalancer -> telemetryInstance "Forwards device traffic" "MQTT, HTTPS"
+            deviceLoadBalancer -> telemetryInstance "Forwards device traffic" "MQTT, HTTPS"
         }
     }
 
